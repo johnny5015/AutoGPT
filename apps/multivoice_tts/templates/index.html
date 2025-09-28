@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>多角色语音生成</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <style>
+      body { padding: 2rem; }
+      .roles-table input { width: 100%; }
+      .progress { margin-top: 1rem; }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>多角色播客音频生成</h1>
+      <p>上传 SRT 字幕文件，配置角色对应的语音模型，自动生成可下载的 MP3 文件。</p>
+      <form id="generate-form">
+        <fieldset>
+          <label>SRT 字幕文件
+            <input type="file" name="file" accept=".srt" required />
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>角色配置</legend>
+          <p>根据字幕中的角色名称配置对应的语音 ID。例如字幕行以 <code>主持人: 大家好</code> 的格式出现。</p>
+          <table class="roles-table" id="roles-table">
+            <thead>
+              <tr><th>角色名称</th><th>语音 ID</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <button type="button" id="add-role">添加角色</button>
+        </fieldset>
+        <fieldset>
+          <label>TTS 接口地址
+            <input type="url" name="api_url" placeholder="https://example.com/tts" />
+          </label>
+          <label>API Key (可选)
+            <input type="text" name="api_key" />
+          </label>
+          <label>
+            <input type="checkbox" name="use_mock" /> 使用内置示例音色 (仅供演示)
+          </label>
+        </fieldset>
+        <button type="submit">开始生成</button>
+      </form>
+      <section id="progress-section" class="hidden">
+        <h2>生成进度</h2>
+        <progress id="progress-bar" value="0" max="1"></progress>
+        <p id="status-text"></p>
+        <a id="download-link" class="hidden" download>下载生成的音频</a>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
