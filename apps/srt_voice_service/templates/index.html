@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>多角色语音合成</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <style>
+      body {
+        padding: 2rem;
+      }
+      textarea {
+        min-height: 200px;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+      #status-panel {
+        margin-top: 1.5rem;
+      }
+      .hidden {
+        display: none;
+      }
+      .progress-bar {
+        height: 12px;
+        background-color: var(--primary);
+        transition: width 0.3s ease;
+      }
+      .progress-track {
+        background-color: rgba(0, 0, 0, 0.1);
+        width: 100%;
+        height: 12px;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      footer {
+        margin-top: 3rem;
+        font-size: 0.9rem;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>多角色语音播客生成器</h1>
+      <p>
+        上传一份包含角色对白的 <code>.srt</code> 字幕文件，并为每个角色指定第三方语音接口的参数，系统会按照时间轴合成自然流畅的多角色语音文件。
+      </p>
+      <form id="generation-form">
+        <label for="srt-file">字幕文件（SRT）</label>
+        <input type="file" id="srt-file" name="file" accept=".srt" required />
+
+        <label for="config-json">角色与接口配置（JSON）</label>
+        <textarea id="config-json" name="config" spellcheck="false" required>{
+  "provider": {
+    "base_url": "https://api.example.com/tts",
+    "api_key": "YOUR_TOKEN"
+  },
+  "roles": {
+    "Alice": { "voice_id": "voice_a", "audio_format": "mp3" },
+    "Bob": { "voice_id": "voice_b", "audio_format": "mp3" }
+  }
+}</textarea>
+
+        <button type="submit">生成语音</button>
+      </form>
+
+      <section id="status-panel" class="hidden">
+        <h2>生成进度</h2>
+        <div class="progress-track">
+          <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+        </div>
+        <p id="status-message"></p>
+        <p id="download-link" class="hidden"></p>
+      </section>
+    </main>
+
+    <footer>
+      <p>提示：SRT 文本中需使用 <code>角色名: 台词</code> 的格式来识别不同角色。</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

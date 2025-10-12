@@ -37,6 +37,16 @@ Among our currently benchmarked agents, AutoGPT scores the best. This will chang
 
 - **To activate the best agent** follow the guide [here](https://github.com/Significant-Gravitas/AutoGPT/blob/master/autogpts/autogpt/README.md).
 
+## 📦 Downloading the Codex-generated project
+
+Need an archive of the project that Codex produced? Run the helper script from the repository root to create a zip file that skips version-control metadata and caches:
+
+```bash
+python package_codex_project.py --output autogpt_codex_project.zip
+```
+
+The command prints the location of the archive once it is created, so you can download it directly.
+
 Want to build your own groundbreaking agent using AutoGPT? 🛠️ There are three major components to focus on:
 
 ### 🏗️ the Forge
