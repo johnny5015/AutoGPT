@@ -39,8 +39,16 @@ class AudioTimelineBuilder:
         if not self._entries:
             raise ValueError("No audio segments were added to the timeline.")
 
-        total_duration = max(entry.end for entry, _ in self._entries)
         buffer = timedelta(seconds=1)
+        total_duration = timedelta()
+        for subtitle, segment in self._entries:
+            subtitle_window = subtitle.end - subtitle.start
+            segment_duration = timedelta(milliseconds=len(segment))
+            effective_duration = max(subtitle_window, segment_duration)
+            segment_end = subtitle.start + effective_duration
+            if segment_end > total_duration:
+                total_duration = segment_end
+
         total_ms = int((total_duration + buffer).total_seconds() * 1000)
         timeline = AudioSegment.silent(duration=total_ms)
 
