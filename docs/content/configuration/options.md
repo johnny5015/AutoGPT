@@ -46,8 +46,14 @@ Configuration is controlled through the `Config` object. You can set configurati
 - `SHELL_DENYLIST`: List of shell commands that ARE NOT allowed to be executed by AutoGPT. Only applies if `SHELL_COMMAND_CONTROL` is set to `denylist`. Default: sudo,su
 - `SMART_LLM`: LLM Model to use for "smart" tasks. Default: gpt-4
 - `STREAMELEMENTS_VOICE`: StreamElements voice to use. Default: Brian
+- `INDEX_TTS_URL`: Base URL for a local [index-tts](https://github.com/index-tts/index-tts) service. Default: http://localhost:8080
+- `INDEX_TTS_ENDPOINT`: API endpoint path exposed by the index-tts service. Default: /api/tts
+- `INDEX_TTS_VOICE`: Preferred voice identifier to request from index-tts. Optional.
+- `INDEX_TTS_LANGUAGE`: Language code to request from index-tts. Optional.
+- `INDEX_TTS_AUDIO_FORMAT`: Audio format requested from index-tts (for example `mp3` or `wav`). Default: mp3
+- `INDEX_TTS_TIMEOUT`: Request timeout (in seconds) when calling index-tts. Default: 60
 - `TEMPERATURE`: Value of temperature given to OpenAI. Value from 0 to 2. Lower is more deterministic, higher is more random. See https://platform.openai.com/docs/api-reference/completions/create#completions/create-temperature
-- `TEXT_TO_SPEECH_PROVIDER`: Text to Speech Provider. Options are `gtts`, `macos`, `elevenlabs`, and `streamelements`. Default: gtts
+- `TEXT_TO_SPEECH_PROVIDER`: Text to Speech Provider. Options are `gtts`, `index`, `macos`, `elevenlabs`, and `streamelements`. Default: gtts
 - `USER_AGENT`: User-Agent given when browsing websites. Default: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36"
 - `USE_AZURE`: Use Azure's LLM Default: False
 - `USE_WEB_BROWSER`: Which web browser to use. Options are `chrome`, `firefox`, `safari` or `edge` Default: chrome
