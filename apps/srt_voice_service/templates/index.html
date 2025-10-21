@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>多角色语音合成</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <style>
+      body {
+        padding: 2rem;
+      }
+      textarea {
+        min-height: 200px;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+      #status-panel {
+        margin-top: 1.5rem;
+      }
+      .hidden {
+        display: none;
+      }
+      .progress-bar {
+        height: 12px;
+        background-color: var(--primary);
+        transition: width 0.3s ease;
+      }
+      .progress-track {
+        background-color: rgba(0, 0, 0, 0.1);
+        width: 100%;
+        height: 12px;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      footer {
+        margin-top: 3rem;
+        font-size: 0.9rem;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>多角色语音播客生成器</h1>
+      <p>
+        上传音频或字幕文件，生成带有情绪、语气、性别标注的字幕，并可按角色配置语音接口生成自然流畅的多角色语音文件。
+      </p>
+
+      <section>
+        <h2>步骤 1：上传音频生成智能字幕</h2>
+        <form id="transcription-form">
+          <label for="audio-file">音频文件（MP3/WAV/M4A）</label>
+          <input type="file" id="audio-file" name="file" accept="audio/*" required />
+
+          <label for="transcription-config">识别服务配置（可选，JSON）</label>
+          <textarea
+            id="transcription-config"
+            name="config"
+            spellcheck="false"
+            placeholder='{"provider": {"base_url": "https://api.example.com/asr", "api_key": "TOKEN"}}'
+          ></textarea>
+
+          <button type="submit">生成字幕文件</button>
+        </form>
+        <article id="transcription-result" class="hidden">
+          <h3>最新生成的字幕</h3>
+          <p id="transcription-message"></p>
+          <pre id="transcript-viewer"></pre>
+        </article>
+      </section>
+
+      <section>
+        <h2>步骤 2：管理字幕资源</h2>
+        <p>下方列出所有已生成或上传的字幕文件，可查看、下载或继续用于语音合成。</p>
+        <div id="transcripts-list" class="grid"></div>
+      </section>
+
+      <section>
+        <h2>步骤 3：使用字幕生成语音</h2>
+        <form id="generation-form">
+          <fieldset>
+            <legend>选择字幕来源</legend>
+            <label for="srt-file">上传新的字幕文件（SRT）</label>
+            <input type="file" id="srt-file" name="file" accept=".srt" />
+
+            <label for="transcript-select">或选择历史字幕</label>
+            <select id="transcript-select">
+              <option value="">-- 请选择已有字幕 --</option>
+            </select>
+          </fieldset>
+
+          <label for="config-json">角色与接口配置（JSON，支持性别策略）</label>
+          <textarea id="config-json" name="config" spellcheck="false" required>{
+  "provider": {
+    "base_url": "https://api.example.com/tts",
+    "api_key": "YOUR_TOKEN"
+  },
+  "roles": {
+    "Alice": { "voice_id": "voice_a", "audio_format": "mp3", "gender": "female" },
+    "Bob": { "voice_id": "voice_b", "audio_format": "mp3", "gender": "male" }
+  },
+  "gender_roles": {
+    "female": { "voice_id": "general_female", "audio_format": "mp3" },
+    "male": { "voice_id": "general_male", "audio_format": "mp3" }
+  }
+}</textarea>
+
+          <input type="hidden" id="selected-transcript-id" name="transcript_id" />
+          <button type="submit">生成语音</button>
+        </form>
+      </section>
+
+      <section id="status-panel" class="hidden">
+        <h2>生成进度</h2>
+        <div class="progress-track">
+          <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+        </div>
+        <p id="status-message"></p>
+        <p id="download-link" class="hidden"></p>
+      </section>
+    </main>
+
+    <footer>
+      <p>提示：SRT 文本中可使用 <code>角色|emotion=高兴|tone=亲切|gender=female: 台词</code> 的格式添加情绪、语气与性别标签。</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
