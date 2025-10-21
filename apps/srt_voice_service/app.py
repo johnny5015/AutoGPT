@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import uuid
 from datetime import datetime
@@ -29,6 +30,7 @@ from .services.voice_provider import MockVoiceProvider, ThirdPartyVoiceProvider,
 APP_DIR = Path(__file__).resolve().parent
 GENERATED_DIR = APP_DIR / "generated"
 TRANSCRIPTS_DIR = APP_DIR / "transcripts"
+SAFE_TRANSCRIPT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -139,12 +141,26 @@ def _process_generation(job_id: str, srt_payload: bytes, config: GenerationConfi
         _update_task(job_id, status="failed", message=str(exc))
 
 
+def _ensure_safe_transcript_path(transcript_id: str, extension: str) -> Path:
+    if not SAFE_TRANSCRIPT_ID_PATTERN.fullmatch(transcript_id):
+        raise HTTPException(status_code=400, detail="Invalid transcript identifier")
+
+    transcripts_dir = TRANSCRIPTS_DIR.resolve()
+    candidate_path = (TRANSCRIPTS_DIR / f"{transcript_id}.{extension}").resolve()
+    try:
+        candidate_path.relative_to(transcripts_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid transcript identifier") from exc
+
+    return candidate_path
+
+
 def _transcript_metadata_path(transcript_id: str) -> Path:
-    return TRANSCRIPTS_DIR / f"{transcript_id}.json"
+    return _ensure_safe_transcript_path(transcript_id, "json")
 
 
 def _transcript_file_path(transcript_id: str) -> Path:
-    return TRANSCRIPTS_DIR / f"{transcript_id}.srt"
+    return _ensure_safe_transcript_path(transcript_id, "srt")
 
 
 def _save_transcript(
