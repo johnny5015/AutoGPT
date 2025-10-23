@@ -10,6 +10,7 @@ from autogpt.core.configuration.schema import SystemConfiguration, UserConfigura
 from .base import VoiceBase
 from .eleven_labs import ElevenLabsConfig, ElevenLabsSpeech
 from .gtts import GTTSVoice
+from .index_tts import IndexTTSConfig, IndexTTSSpeech
 from .macos_tts import MacOSTTS
 from .stream_elements_speech import StreamElementsConfig, StreamElementsSpeech
 
@@ -21,9 +22,14 @@ _QUEUE_SEMAPHORE = Semaphore(
 class TTSConfig(SystemConfiguration):
     speak_mode: bool = False
     provider: Literal[
-        "elevenlabs", "gtts", "macos", "streamelements"
+        "elevenlabs",
+        "gtts",
+        "index",
+        "macos",
+        "streamelements",
     ] = UserConfigurable(default="gtts")
     elevenlabs: Optional[ElevenLabsConfig] = None
+    index_tts: Optional[IndexTTSConfig] = None
     streamelements: Optional[StreamElementsConfig] = None
 
 
@@ -53,6 +59,8 @@ class TextToSpeechProvider:
         tts_provider = config.provider
         if tts_provider == "elevenlabs":
             voice_engine = ElevenLabsSpeech(config.elevenlabs)
+        elif tts_provider == "index":
+            voice_engine = IndexTTSSpeech(config.index_tts)
         elif tts_provider == "macos":
             voice_engine = MacOSTTS()
         elif tts_provider == "streamelements":

@@ -296,6 +296,24 @@ class ConfigBuilder(Configurable[Config]):
                 "api_key": os.getenv("ELEVENLABS_API_KEY"),
                 "voice_id": os.getenv("ELEVENLABS_VOICE_ID", ""),
             }
+        index_tts_settings: dict[str, object] = {}
+        if os.getenv("INDEX_TTS_URL"):
+            index_tts_settings["base_url"] = os.getenv("INDEX_TTS_URL")
+        if os.getenv("INDEX_TTS_ENDPOINT"):
+            index_tts_settings["endpoint"] = os.getenv("INDEX_TTS_ENDPOINT")
+        if os.getenv("INDEX_TTS_VOICE"):
+            index_tts_settings["voice"] = os.getenv("INDEX_TTS_VOICE")
+        if os.getenv("INDEX_TTS_LANGUAGE"):
+            index_tts_settings["language"] = os.getenv("INDEX_TTS_LANGUAGE")
+        if os.getenv("INDEX_TTS_AUDIO_FORMAT"):
+            index_tts_settings["audio_format"] = os.getenv("INDEX_TTS_AUDIO_FORMAT")
+        if os.getenv("INDEX_TTS_TIMEOUT"):
+            with contextlib.suppress(ValueError):
+                index_tts_settings["request_timeout"] = float(
+                    os.getenv("INDEX_TTS_TIMEOUT", "")
+                )
+        if index_tts_settings:
+            config_dict["tts_config"]["index_tts"] = index_tts_settings
         if os.getenv("STREAMELEMENTS_VOICE"):
             config_dict["tts_config"]["streamelements"] = {
                 "voice": os.getenv("STREAMELEMENTS_VOICE"),
@@ -306,6 +324,8 @@ class ConfigBuilder(Configurable[Config]):
                 default_tts_provider = "macos"
             elif "elevenlabs" in config_dict["tts_config"]:
                 default_tts_provider = "elevenlabs"
+            elif "index_tts" in config_dict["tts_config"]:
+                default_tts_provider = "index"
             elif os.getenv("USE_BRIAN_TTS"):
                 default_tts_provider = "streamelements"
             else:
