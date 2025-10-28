@@ -11,21 +11,22 @@ from typing import Dict
 import requests
 from pydub.generators import Sine
 
-from .config import ProviderConfig, RoleConfig
+from .config import RoleConfig, VoiceProviderConfig
+from .srt_parser import SubtitleSegment
 
 
 class VoiceProvider(ABC):
     """Abstract base class for text-to-speech providers."""
 
     @abstractmethod
-    def synthesize(self, text: str, role: RoleConfig) -> bytes:
-        """Generate audio bytes for the supplied text."""
+    def synthesize(self, segment: SubtitleSegment, role: RoleConfig) -> bytes:
+        """Generate audio bytes for the supplied subtitle segment."""
 
 
 class ThirdPartyVoiceProvider(VoiceProvider):
     """Calls an external HTTP API to synthesize speech."""
 
-    def __init__(self, config: ProviderConfig) -> None:
+    def __init__(self, config: VoiceProviderConfig) -> None:
         self._config = config
 
     def _build_headers(self, *, json_payload: bool = False) -> Dict[str, str]:
@@ -38,17 +39,29 @@ class ThirdPartyVoiceProvider(VoiceProvider):
             headers["Authorization"] = f"Bearer {self._config.api_key}"
         return headers
 
-    def synthesize(self, text: str, role: RoleConfig) -> bytes:
+    def synthesize(self, segment: SubtitleSegment, role: RoleConfig) -> bytes:
         """调用第三方接口完成文本到语音的转换。"""
 
         payload: Dict[str, object] = {
             "voice_id": role.voice_id,
-            "text": text,
+            "text": segment.text,
             "speaking_rate": role.speaking_rate,
             "pitch": role.pitch,
         }
-        if role.gender:
-            payload["gender"] = role.gender
+        reference_audio = role.reference_audio_path
+        if reference_audio:
+            payload["reference_audio_path"] = reference_audio
+
+        # emotion/tone 优先使用字幕中携带的标记，其次使用角色默认值
+        emotion = segment.emotion or role.default_emotion
+        tone = segment.tone or role.default_tone
+        gender = segment.gender or role.gender
+        if gender:
+            payload["gender"] = gender
+        if emotion:
+            payload["emotion"] = emotion
+        if tone:
+            payload["tone"] = tone
         payload.update(role.extra)
 
         headers = self._build_headers(json_payload=True)
@@ -152,13 +165,13 @@ class ThirdPartyVoiceProvider(VoiceProvider):
 class MockVoiceProvider(VoiceProvider):
     """Generates placeholder audio tones for development environments."""
 
-    def synthesize(self, text: str, role: RoleConfig) -> bytes:
+    def synthesize(self, segment: SubtitleSegment, role: RoleConfig) -> bytes:
         """生成不同频率的纯音，模拟语音输出，方便前端联调。"""
 
-        words = max(len(text.split()), 1)
+        words = max(len(segment.text.split()), 1)
         duration_ms = max(350, words * 320)
         frequency = 300 + (abs(hash(role.voice_id)) % 300)
-        segment = (
+        tone_segment = (
             Sine(frequency)
             .to_audio_segment(duration=duration_ms)
             .fade_in(40)
@@ -166,5 +179,5 @@ class MockVoiceProvider(VoiceProvider):
         )
         buffer = io.BytesIO()
         export_format = role.audio_format or "mp3"
-        segment.export(buffer, format=export_format)
+        tone_segment.export(buffer, format=export_format)
         return buffer.getvalue()

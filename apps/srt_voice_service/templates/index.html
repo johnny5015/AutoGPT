@@ -55,7 +55,7 @@
             id="transcription-config"
             name="config"
             spellcheck="false"
-            placeholder='{"provider": {"base_url": "https://api.example.com/asr", "api_key": "TOKEN"}}'
+            placeholder='{"recognizer": {"base_url": "https://api.example.com/asr", "api_key": "TOKEN"}}'
           ></textarea>
 
           <button type="submit">生成字幕文件</button>
@@ -94,11 +94,23 @@
     "api_key": "YOUR_TOKEN"
   },
   "roles": {
-    "Alice": { "voice_id": "voice_a", "audio_format": "mp3", "gender": "female" },
-    "Bob": { "voice_id": "voice_b", "audio_format": "mp3", "gender": "male" }
+    "Alice": {
+      "voice_id": "voice_a",
+      "audio_format": "mp3",
+      "gender": "female",
+      "reference_audio_path": "s3://bucket/reference/alice.mp3",
+      "default_emotion": "warm",
+      "default_tone": "friendly"
+    },
+    "Bob": {
+      "voice_id": "voice_b",
+      "audio_format": "mp3",
+      "gender": "male",
+      "reference_audio_path": "s3://bucket/reference/bob.mp3"
+    }
   },
   "gender_roles": {
-    "female": { "voice_id": "general_female", "audio_format": "mp3" },
+    "female": { "voice_id": "general_female", "audio_format": "mp3", "default_emotion": "gentle" },
     "male": { "voice_id": "general_male", "audio_format": "mp3" }
   }
 }</textarea>

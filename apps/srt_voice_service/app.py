@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .services.audio_stitcher import AudioTimelineBuilder
-from .services.config import GenerationConfig, ProviderConfig
+from .services.config import GenerationConfig, RecognizerProviderConfig
 from .services.speech_recognizer import (
     MockSpeechRecognizer,
     SpeechRecognizer,
@@ -61,19 +61,9 @@ def _load_generation_config(raw_config: str | None) -> GenerationConfig:
     return GenerationConfig.from_dict(parsed)
 
 
-def _load_provider_config(payload: Mapping[str, object] | None) -> Optional[ProviderConfig]:
-    """根据前端的 JSON 载荷构造语音服务提供商配置。"""
-    if not payload:
-        return None
-    try:
-        return ProviderConfig.from_mapping(payload)
-    except Exception as exc:  # pylint: disable=broad-except
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 def _load_recognizer(raw_config: str | None) -> SpeechRecognizer:
     """根据配置选择真实的语音识别服务或内置的模拟实现。"""
-    provider_config: Optional[ProviderConfig] = None
+    provider_config: Optional[RecognizerProviderConfig] = None
     if raw_config:
         try:
             parsed = json.loads(raw_config)
@@ -82,10 +72,20 @@ def _load_recognizer(raw_config: str | None) -> SpeechRecognizer:
 
         provider_payload = None
         if isinstance(parsed, Mapping):
-            raw_provider = parsed.get("provider")
+            raw_provider = None
+            if isinstance(parsed.get("recognizer"), Mapping):
+                raw_provider = parsed.get("recognizer")
+            elif isinstance(parsed.get("provider"), Mapping):
+                # 兼容旧格式 {"provider": {...}}
+                raw_provider = parsed.get("provider")
             if isinstance(raw_provider, Mapping):
                 provider_payload = raw_provider
-        provider_config = _load_provider_config(provider_payload)
+        provider_config = None
+        if provider_payload:
+            try:
+                provider_config = RecognizerProviderConfig.from_mapping(provider_payload)
+            except Exception as exc:  # pylint: disable=broad-except
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if provider_config:
         return ThirdPartySpeechRecognizer(provider_config)
@@ -94,7 +94,7 @@ def _load_recognizer(raw_config: str | None) -> SpeechRecognizer:
 
 def _get_voice_provider(config: GenerationConfig) -> VoiceProvider:
     """根据生成配置选择第三方语音合成服务或使用模拟实现。"""
-    provider_conf = config.provider
+    provider_conf = config.voice_provider
     if provider_conf and provider_conf.base_url:
         return ThirdPartyVoiceProvider(provider_conf)
     return MockVoiceProvider()
@@ -128,7 +128,7 @@ def _process_generation(job_id: str, srt_payload: bytes, config: GenerationConfi
                 progress=round((idx - 1) / total_segments * 100, 2),
             )
 
-            audio_bytes = provider.synthesize(subtitle.text, role_config)
+            audio_bytes = provider.synthesize(subtitle, role_config)
             timeline.add_segment(subtitle, audio_bytes, role_config.audio_format)
 
         output_path = GENERATED_DIR / f"{job_id}.mp3"

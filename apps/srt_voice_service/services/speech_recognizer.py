@@ -10,7 +10,7 @@ from typing import Iterable, List
 import requests
 import srt
 
-from .config import ProviderConfig
+from .config import RecognizerProviderConfig
 
 
 @dataclass(slots=True)
@@ -36,7 +36,7 @@ class SpeechRecognizer:
 class ThirdPartySpeechRecognizer(SpeechRecognizer):
     """Calls an external HTTP API to transcribe audio."""
 
-    def __init__(self, config: ProviderConfig) -> None:
+    def __init__(self, config: RecognizerProviderConfig) -> None:
         self._config = config
 
     def transcribe(self, audio_bytes: bytes, filename: str) -> List[RecognizedSegment]:

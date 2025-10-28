@@ -56,12 +56,14 @@ apps/srt_voice_service/
 
 ## 配置说明
 
+- **recognizer.base_url**：第三方语音识别接口的基础 URL，系统会向该地址追加 `/transcribe` 路径上传音频文件。
+- **recognizer.api_key**：语音识别接口的鉴权 Token，使用 `Bearer` Header 携带。
 - **provider.base_url**：第三方语音合成接口的基础 URL，服务会在其后追加 `/synthesize` 路径。
-- **provider.api_key**：若接口需要鉴权，服务会以 `Bearer` 方式写入 `Authorization` 请求头。
+- **provider.api_key**：语音合成接口的鉴权 Token，使用 `Bearer` Header 携带。
 - **provider.poll_interval_seconds**：轮询第三方任务状态的时间间隔，默认 2 秒。
 - **provider.poll_timeout_seconds**：等待第三方任务完成的最长时长（秒），超过后视为失败。
-- **roles**：以角色名为键，配置 `voice_id`、语速、音调及可选的 `gender` 字段，其余字段会透传给第三方接口。
-- **gender_roles**：按性别（`female` / `male` 等自定义标签）定义默认语音，当字幕中出现匹配的性别标签且未显式配置同名角色时将自动应用。
+- **roles**：以角色名为键，可配置 `voice_id`、语速、音调、性别，以及 `reference_audio_path`（参考音色音频路径）、`default_emotion`、`default_tone` 等字段；其余字段仍会透传给第三方接口，便于扩展更多参数。
+- **gender_roles**：按性别（`female` / `male` 等自定义标签）定义默认语音，当字幕中出现匹配的性别标签且未显式配置同名角色时将自动应用；同样支持上文提到的参考音频与默认情绪/语气字段。
 
 示例：
 
@@ -69,14 +71,31 @@ apps/srt_voice_service/
 {
   "provider": {
     "base_url": "https://api.example.com/tts",
-    "api_key": "YOUR_TOKEN"
+    "api_key": "YOUR_TOKEN",
+    "poll_interval_seconds": 2,
+    "poll_timeout_seconds": 180
   },
   "roles": {
-    "Alice": { "voice_id": "voice_a", "gender": "female", "speaking_rate": 1.05 },
-    "Bob": { "voice_id": "voice_b", "gender": "male", "pitch": -1.5 }
+    "Alice": {
+      "voice_id": "voice_a",
+      "gender": "female",
+      "speaking_rate": 1.05,
+      "reference_audio_path": "s3://bucket/reference/alice.mp3",
+      "default_emotion": "warm",
+      "default_tone": "friendly"
+    },
+    "Bob": {
+      "voice_id": "voice_b",
+      "gender": "male",
+      "pitch": -1.5,
+      "reference_audio_path": "s3://bucket/reference/bob.mp3"
+    }
   },
   "gender_roles": {
-    "female": { "voice_id": "generic_female" },
+    "female": {
+      "voice_id": "generic_female",
+      "default_emotion": "gentle"
+    },
     "male": { "voice_id": "generic_male" }
   }
 }
@@ -84,7 +103,7 @@ apps/srt_voice_service/
 
 当未提供 `provider.base_url` 时，后端会使用 `MockVoiceProvider` 生成占位音频，便于快速预览时间轴与拼接效果。
 
-若语音识别配置中未指定第三方接口，同样会使用内置的 `MockSpeechRecognizer` 返回示例字幕，便于端到端联调。
+语音识别配置表单接受 `{ "recognizer": { ... } }` 的 JSON；若语音识别配置中未指定第三方接口，同样会使用内置的 `MockSpeechRecognizer` 返回示例字幕，便于端到端联调。
 
 ## 注意事项
 
