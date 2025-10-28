@@ -26,6 +26,7 @@ from .services.speech_recognizer import (
 from .services.srt_parser import parse_srt
 from .services.voice_provider import MockVoiceProvider, ThirdPartyVoiceProvider, VoiceProvider
 
+# 应用根目录以及音频、字幕输出目录常量
 APP_DIR = Path(__file__).resolve().parent
 GENERATED_DIR = APP_DIR / "generated"
 TRANSCRIPTS_DIR = APP_DIR / "transcripts"
@@ -36,6 +37,7 @@ app = FastAPI(title="SRT Voice Composer")
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 
+# 任务状态存储在内存字典中，使用锁保证多线程访问安全
 _tasks_lock = threading.Lock()
 _tasks: Dict[str, Dict[str, Any]] = {}
 
@@ -47,6 +49,7 @@ async def index(request: Request) -> HTMLResponse:
 
 
 def _load_generation_config(raw_config: str | None) -> GenerationConfig:
+    """加载前端传入的语音合成配置，并转换为内部模型。"""
     if not raw_config:
         raise HTTPException(status_code=400, detail="Missing role configuration JSON.")
 
@@ -59,6 +62,7 @@ def _load_generation_config(raw_config: str | None) -> GenerationConfig:
 
 
 def _load_provider_config(payload: Mapping[str, object] | None) -> Optional[ProviderConfig]:
+    """根据前端的 JSON 载荷构造语音服务提供商配置。"""
     if not payload:
         return None
     try:
@@ -68,6 +72,7 @@ def _load_provider_config(payload: Mapping[str, object] | None) -> Optional[Prov
 
 
 def _load_recognizer(raw_config: str | None) -> SpeechRecognizer:
+    """根据配置选择真实的语音识别服务或内置的模拟实现。"""
     provider_config: Optional[ProviderConfig] = None
     if raw_config:
         try:
@@ -88,6 +93,7 @@ def _load_recognizer(raw_config: str | None) -> SpeechRecognizer:
 
 
 def _get_voice_provider(config: GenerationConfig) -> VoiceProvider:
+    """根据生成配置选择第三方语音合成服务或使用模拟实现。"""
     provider_conf = config.provider
     if provider_conf and provider_conf.base_url:
         return ThirdPartyVoiceProvider(provider_conf)
@@ -95,12 +101,14 @@ def _get_voice_provider(config: GenerationConfig) -> VoiceProvider:
 
 
 def _update_task(job_id: str, **updates: Any) -> None:
+    """线程安全地更新后台任务状态。"""
     with _tasks_lock:
         task = _tasks.setdefault(job_id, {"status": "queued", "progress": 0.0})
         task.update(updates)
 
 
 def _process_generation(job_id: str, srt_payload: bytes, config: GenerationConfig) -> None:
+    """后台任务：解析字幕、调用语音合成并拼接音频时间线。"""
     try:
         _update_task(job_id, status="processing", progress=0.0, message="Parsing subtitles")
         subtitles = list(parse_srt(srt_payload.decode("utf-8")))
@@ -140,10 +148,12 @@ def _process_generation(job_id: str, srt_payload: bytes, config: GenerationConfi
 
 
 def _transcript_metadata_path(transcript_id: str) -> Path:
+    """生成字幕元数据文件的路径。"""
     return TRANSCRIPTS_DIR / f"{transcript_id}.json"
 
 
 def _transcript_file_path(transcript_id: str) -> Path:
+    """生成字幕文本（SRT）文件的路径。"""
     return TRANSCRIPTS_DIR / f"{transcript_id}.srt"
 
 
@@ -153,6 +163,9 @@ def _save_transcript(
     srt_text: str,
     segments: list[dict[str, object]],
 ) -> dict[str, Any]:
+    """将识别得到的字幕内容与元数据写入磁盘。"""
+
+    # 写入 SRT 正文，并将识别元数据保存为 JSON 文件
     srt_path = _transcript_file_path(transcript_id)
     metadata_path = _transcript_metadata_path(transcript_id)
     srt_path.write_text(srt_text, encoding="utf-8")
@@ -189,6 +202,7 @@ def _load_transcript_srt(transcript_id: str) -> str:
 
 
 def _list_transcripts() -> list[dict[str, Any]]:
+    """列出本地缓存的所有字幕元数据，供前端展示。"""
     transcripts: list[dict[str, Any]] = []
     for metadata_file in TRANSCRIPTS_DIR.glob("*.json"):
         try:
@@ -261,11 +275,13 @@ async def transcribe_audio(
 
 @app.get("/transcripts")
 async def list_transcripts() -> JSONResponse:
+    """返回全部字幕文件列表，包含下载链接等信息。"""
     return JSONResponse({"transcripts": _list_transcripts()})
 
 
 @app.get("/transcripts/{transcript_id}")
 async def get_transcript(transcript_id: str) -> JSONResponse:
+    """读取指定字幕的元数据与正文内容。"""
     metadata = _load_transcript_metadata(transcript_id)
     srt_text = _load_transcript_srt(transcript_id)
     metadata["download_url"] = f"/transcripts/{transcript_id}/download"
@@ -275,6 +291,7 @@ async def get_transcript(transcript_id: str) -> JSONResponse:
 
 @app.get("/transcripts/{transcript_id}/download")
 async def download_transcript(transcript_id: str) -> FileResponse:
+    """以附件形式下载字幕文件。"""
     srt_path = _transcript_file_path(transcript_id)
     if not srt_path.exists():
         raise HTTPException(status_code=404, detail="Transcript not found")
@@ -291,6 +308,7 @@ async def generate_from_transcript(
     background_tasks: BackgroundTasks,
     config: str = Form(...),
 ) -> JSONResponse:
+    """使用历史字幕重新发起语音生成任务。"""
     srt_text = _load_transcript_srt(transcript_id)
 
     job_id = str(uuid.uuid4())

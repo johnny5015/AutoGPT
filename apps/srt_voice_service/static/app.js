@@ -1,3 +1,4 @@
+// 页面元素引用：语音生成表单、音频识别表单以及字幕展示区
 const generationForm = document.getElementById("generation-form");
 const transcriptionForm = document.getElementById("transcription-form");
 const transcriptsList = document.getElementById("transcripts-list");
@@ -15,6 +16,7 @@ const downloadLink = document.getElementById("download-link");
 let pollTimer = null;
 
 function resetStatus() {
+  // 在用户重新提交任务前，清空轮询器与提示信息
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
@@ -26,6 +28,7 @@ function resetStatus() {
 }
 
 async function pollStatus(jobId) {
+  // 周期性获取后台任务状态，更新进度条
   pollTimer = setInterval(async () => {
     try {
       const response = await fetch(`/status/${jobId}`);
@@ -57,6 +60,7 @@ async function pollStatus(jobId) {
 }
 
 function renderTranscripts(transcripts) {
+  // 渲染历史字幕列表，便于复用
   transcriptsList.innerHTML = "";
 
   if (!transcripts.length) {
@@ -88,6 +92,7 @@ function renderTranscripts(transcripts) {
 }
 
 function updateTranscriptSelect(transcripts) {
+  // 刷新下拉框选项，保持用户之前的选择
   const previousValue = transcriptSelect.value;
   transcriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
 
@@ -106,6 +111,7 @@ function updateTranscriptSelect(transcripts) {
 }
 
 async function fetchTranscripts() {
+  // 从后端获取最新字幕文件列表
   try {
     const response = await fetch("/transcripts");
     if (!response.ok) {
@@ -121,6 +127,7 @@ async function fetchTranscripts() {
   }
 }
 
+// 监听字幕卡片上的按钮，支持查看与复用字幕
 transcriptsList.addEventListener("click", async (event) => {
   const target = event.target.closest("button[data-action]");
   if (!target) {
@@ -165,6 +172,7 @@ transcriptSelect.addEventListener("change", (event) => {
   selectedTranscriptInput.value = event.target.value;
 });
 
+// 上传音频并调用语音识别接口
 transcriptionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(transcriptionForm);
@@ -195,6 +203,7 @@ transcriptionForm.addEventListener("submit", async (event) => {
   }
 });
 
+// 提交语音合成任务，可以上传新的 SRT 或复用历史字幕
 generationForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   resetStatus();

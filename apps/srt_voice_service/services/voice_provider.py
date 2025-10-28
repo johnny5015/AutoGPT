@@ -28,6 +28,8 @@ class ThirdPartyVoiceProvider(VoiceProvider):
         self._config = config
 
     def synthesize(self, text: str, role: RoleConfig) -> bytes:
+        """调用第三方接口完成文本到语音的转换。"""
+
         payload: Dict[str, object] = {
             "voice_id": role.voice_id,
             "text": text,
@@ -42,6 +44,7 @@ class ThirdPartyVoiceProvider(VoiceProvider):
         if self._config.api_key:
             headers["Authorization"] = f"Bearer {self._config.api_key}"
 
+        # 将角色配置拼装成 JSON 请求体提交给外部 TTS 服务
         response = requests.post(
             self._config.base_url.rstrip("/") + "/synthesize",
             json=payload,
@@ -55,6 +58,7 @@ class ThirdPartyVoiceProvider(VoiceProvider):
 
         content_type = response.headers.get("Content-Type", "")
         if content_type.startswith("application/json"):
+            # 某些服务会返回 base64 编码的音频
             body = response.json()
             audio_payload = body.get("audio")
             if not isinstance(audio_payload, str):
@@ -68,6 +72,8 @@ class MockVoiceProvider(VoiceProvider):
     """Generates placeholder audio tones for development environments."""
 
     def synthesize(self, text: str, role: RoleConfig) -> bytes:
+        """生成不同频率的纯音，模拟语音输出，方便前端联调。"""
+
         words = max(len(text.split()), 1)
         duration_ms = max(350, words * 320)
         frequency = 300 + (abs(hash(role.voice_id)) % 300)

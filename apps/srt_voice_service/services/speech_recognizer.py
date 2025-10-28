@@ -40,6 +40,9 @@ class ThirdPartySpeechRecognizer(SpeechRecognizer):
         self._config = config
 
     def transcribe(self, audio_bytes: bytes, filename: str) -> List[RecognizedSegment]:
+        """将音频文件上传至第三方接口，并解析返回的带情感信息的字幕片段。"""
+
+        # 使用 multipart/form-data 上传音频文件，保持与常见语音识别 API 的兼容性
         files = {"file": (filename, io.BytesIO(audio_bytes), "audio/mpeg")}
         headers = {}
         if self._config.api_key:
@@ -56,6 +59,7 @@ class ThirdPartySpeechRecognizer(SpeechRecognizer):
                 f"Speech recognizer returned HTTP {response.status_code}: {response.text}"
             )
 
+        # 接口约定返回 JSON，其中 segments 字段包含识别到的每个语音片段
         payload = response.json()
         segments_payload = payload.get("segments")
         if not isinstance(segments_payload, list):
@@ -91,6 +95,8 @@ class MockSpeechRecognizer(SpeechRecognizer):
     """Generates a deterministic transcription for development environments."""
 
     def transcribe(self, audio_bytes: bytes, filename: str) -> List[RecognizedSegment]:  # noqa: ARG002
+        """根据音频大小生成两段固定的示例字幕，便于本地调试。"""
+
         base_duration = max(len(audio_bytes) / 32000, 6.0)
         half = base_duration / 2
         return [
@@ -118,6 +124,7 @@ class MockSpeechRecognizer(SpeechRecognizer):
 def segments_to_srt(segments: Iterable[RecognizedSegment]) -> str:
     """Compose recognised segments into an SRT string with metadata tags."""
 
+    # 在字幕行中追加 emotion/tone/gender 标签，方便后续语音合成时读取
     subtitles = []
     for index, segment in enumerate(segments, start=1):
         metadata_parts = []
@@ -145,6 +152,7 @@ def segments_to_srt(segments: Iterable[RecognizedSegment]) -> str:
 def serialize_segments(segments: Iterable[RecognizedSegment]) -> list[dict[str, object]]:
     """Serialize transcription segments into JSON serialisable dictionaries."""
 
+    # 结果会写入磁盘，供二次生成语音或在前端展示
     serialised: list[dict[str, object]] = []
     for segment in segments:
         serialised.append(

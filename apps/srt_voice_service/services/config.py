@@ -16,6 +16,9 @@ class ProviderConfig:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, object]) -> "ProviderConfig":
+        """从用户提交的字典数据中解析语音服务提供商配置。"""
+
+        # base_url 是调用外部接口的关键字段，如果缺失就直接报错
         base_url = str(payload.get("base_url", "")).strip()
         if not base_url:
             raise ValueError("Provider configuration requires a 'base_url'.")
@@ -37,6 +40,9 @@ class RoleConfig:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, object]) -> "RoleConfig":
+        """解析单个角色的语音配置项。"""
+
+        # voice_id 对应第三方语音模型或音色 ID，是必填项
         voice_id = str(payload.get("voice_id", "")).strip()
         if not voice_id:
             raise ValueError("Each role must define a non-empty 'voice_id'.")
@@ -71,6 +77,9 @@ class GenerationConfig:
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, object]) -> "GenerationConfig":
+        """将前端提交的完整配置转换为内部数据结构。"""
+
+        # roles 是按角色名称划分的配置主体，必须存在
         raw_roles = payload.get("roles")
         if not isinstance(raw_roles, Mapping):
             raise ValueError("Configuration must contain a 'roles' mapping of speaker names to settings.")
@@ -101,6 +110,7 @@ class GenerationConfig:
     def resolve_role(self, speaker: str, gender: Optional[str]) -> RoleConfig:
         """Return the best matching role configuration for the supplied speaker."""
 
+        # 优先匹配角色名称；若无精确匹配，再尝试根据性别 fallback
         if speaker in self.roles:
             return self.roles[speaker]
 

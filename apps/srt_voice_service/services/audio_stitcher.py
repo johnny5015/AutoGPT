@@ -30,6 +30,7 @@ class AudioTimelineBuilder:
     def add_segment(self, subtitle: SubtitleSegment, audio_bytes: bytes, audio_format: str) -> None:
         """Add an audio clip aligned with a subtitle segment."""
 
+        # 将第三方返回的音频字节流解析为 AudioSegment，方便后续混音
         if not audio_bytes:
             raise ValueError("Received empty audio payload from provider.")
         segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format=audio_format)
@@ -39,12 +40,14 @@ class AudioTimelineBuilder:
         if not self._entries:
             raise ValueError("No audio segments were added to the timeline.")
 
+        # 计算时间线总时长，并额外预留缓冲，避免最后一段被截断
         total_duration = max(entry.end for entry, _ in self._entries)
         buffer = timedelta(seconds=1)
         total_ms = int((total_duration + buffer).total_seconds() * 1000)
         timeline = AudioSegment.silent(duration=total_ms)
 
         for subtitle, segment in self._entries:
+            # 使用字幕时间戳对齐音频片段
             start_ms = int(subtitle.start.total_seconds() * 1000)
             timeline = timeline.overlay(segment, position=start_ms)
 

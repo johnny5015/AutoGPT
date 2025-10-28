@@ -23,12 +23,15 @@ class SubtitleSegment:
 
 
 def _split_speaker_and_text(payload: str) -> tuple[str, str, dict[str, str]]:
+    """从字幕文本中拆分出说话人、正文以及 emotion/tone 等标记。"""
+
     if ":" in payload:
         potential_speaker, remainder = payload.split(":", 1)
         speaker_token = potential_speaker.strip()
         metadata: dict[str, str] = {}
 
         if "|" in speaker_token:
+            # 约定格式：Speaker|emotion=happy|tone=warm: actual text
             parts = [part.strip() for part in speaker_token.split("|") if part.strip()]
             if parts:
                 speaker = parts[0]
@@ -51,6 +54,7 @@ def _split_speaker_and_text(payload: str) -> tuple[str, str, dict[str, str]]:
 def parse_srt(raw_content: str) -> Iterator[SubtitleSegment]:
     """Yield subtitle segments from raw SRT content."""
 
+    # 借助 python-srt 解析时间戳，再用自定义格式提取说话人和情感信息
     for entry in srt.parse(raw_content):
         text = entry.content.strip()
         if not text:
