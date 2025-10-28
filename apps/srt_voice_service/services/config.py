@@ -13,6 +13,8 @@ class ProviderConfig:
     base_url: str
     api_key: Optional[str] = None
     timeout_seconds: float = 30.0
+    poll_interval_seconds: float = 2.0
+    poll_timeout_seconds: float = 180.0
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, object]) -> "ProviderConfig":
@@ -24,7 +26,15 @@ class ProviderConfig:
             raise ValueError("Provider configuration requires a 'base_url'.")
         api_key = payload.get("api_key")
         timeout = float(payload.get("timeout_seconds", 30.0))
-        return cls(base_url=base_url, api_key=str(api_key) if api_key else None, timeout_seconds=timeout)
+        poll_interval = float(payload.get("poll_interval_seconds", 2.0))
+        poll_timeout = float(payload.get("poll_timeout_seconds", 180.0))
+        return cls(
+            base_url=base_url,
+            api_key=str(api_key) if api_key else None,
+            timeout_seconds=timeout,
+            poll_interval_seconds=poll_interval,
+            poll_timeout_seconds=poll_timeout,
+        )
 
 
 @dataclass(slots=True)

@@ -58,6 +58,8 @@ apps/srt_voice_service/
 
 - **provider.base_url**：第三方语音合成接口的基础 URL，服务会在其后追加 `/synthesize` 路径。
 - **provider.api_key**：若接口需要鉴权，服务会以 `Bearer` 方式写入 `Authorization` 请求头。
+- **provider.poll_interval_seconds**：轮询第三方任务状态的时间间隔，默认 2 秒。
+- **provider.poll_timeout_seconds**：等待第三方任务完成的最长时长（秒），超过后视为失败。
 - **roles**：以角色名为键，配置 `voice_id`、语速、音调及可选的 `gender` 字段，其余字段会透传给第三方接口。
 - **gender_roles**：按性别（`female` / `male` 等自定义标签）定义默认语音，当字幕中出现匹配的性别标签且未显式配置同名角色时将自动应用。
 
@@ -88,5 +90,6 @@ apps/srt_voice_service/
 
 - SRT 台词需采用 `角色名: 内容` 的格式才能正确识别说话人。
 - 第三方接口返回的内容可以是 MP3 等音频二进制流，或包含 Base64 字段的 JSON 数据。
+- 对于异步的第三方语音合成服务，系统会先提交任务并定期轮询状态，确认生成成功后再下载音频拼接时间线。
 - 若使用自定义音频格式，务必在角色配置中通过 `audio_format` 指定对应的格式，以便正确解析。
 
