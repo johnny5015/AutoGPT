@@ -128,8 +128,10 @@ def _process_generation(job_id: str, srt_payload: bytes, config: GenerationConfi
                 progress=round((idx - 1) / total_segments * 100, 2),
             )
 
-            audio_bytes = provider.synthesize(subtitle, role_config)
-            timeline.add_segment(subtitle, audio_bytes, role_config.audio_format)
+            audio_payload = provider.synthesize(subtitle, role_config)
+            timeline.add_segment(
+                subtitle, audio_payload.data, audio_payload.audio_format
+            )
 
         output_path = GENERATED_DIR / f"{job_id}.mp3"
         _update_task(job_id, message="Mixing audio tracks")
