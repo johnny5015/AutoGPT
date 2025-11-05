@@ -49,15 +49,62 @@ class RecognizerProviderConfig:
     """Configuration for the third-party speech recognition provider."""
 
     base_url: str
-    api_key: Optional[str] = None
+    app_id: str
+    access_key: str
     timeout_seconds: float = 30.0
+    api_key: Optional[str] = None
+    start_path: str = "/transcribe"
+    result_path: str = "/transcribe/result"
+    poll_interval_seconds: float = 2.0
+    poll_timeout_seconds: float = 180.0
+    status_header: str = "status-code"
+    message_header: str = "message"
+    extra_headers: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, object]) -> "RecognizerProviderConfig":
         """解析语音识别服务的外部接口配置。"""
 
         base_url, api_key, timeout = _parse_common_provider_fields(payload)
-        return cls(base_url=base_url, api_key=api_key, timeout_seconds=timeout)
+        app_id_value = payload.get("app_id") or payload.get("appId")
+        access_key_value = payload.get("access_key") or payload.get("accessKey")
+        app_id = str(app_id_value).strip() if app_id_value else ""
+        access_key = str(access_key_value).strip() if access_key_value else ""
+        if not app_id or not access_key:
+            raise ValueError("Recognizer provider requires both 'app_id' and 'access_key'.")
+
+        start_path = str(payload.get("start_path", "/transcribe")).strip() or "/transcribe"
+        result_path = (
+            str(payload.get("result_path", "/transcribe/result")).strip()
+            or "/transcribe/result"
+        )
+        poll_interval = float(payload.get("poll_interval_seconds", 2.0))
+        poll_timeout = float(payload.get("poll_timeout_seconds", 180.0))
+        status_header = str(payload.get("status_header", "status-code")).strip() or "status-code"
+        message_header = str(payload.get("message_header", "message")).strip() or "message"
+
+        extra_headers_value = payload.get("extra_headers") or {}
+        extra_headers: Dict[str, str] = {}
+        if isinstance(extra_headers_value, Mapping):
+            for key, value in extra_headers_value.items():
+                if value is None:
+                    continue
+                extra_headers[str(key)] = str(value)
+
+        return cls(
+            base_url=base_url,
+            app_id=app_id,
+            access_key=access_key,
+            timeout_seconds=timeout,
+            api_key=api_key,
+            start_path=start_path,
+            result_path=result_path,
+            poll_interval_seconds=poll_interval,
+            poll_timeout_seconds=poll_timeout,
+            status_header=status_header,
+            message_header=message_header,
+            extra_headers=extra_headers,
+        )
 
 
 @dataclass(slots=True)

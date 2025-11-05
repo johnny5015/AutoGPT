@@ -52,12 +52,17 @@ apps/srt_voice_service/
    uv run uvicorn apps.srt_voice_service.app:app --reload
    ```
 
-3. 访问 `http://127.0.0.1:8000`，按步骤上传音频生成字幕或直接上传 SRT，随后配置角色参数触发语音合成。
+3. 访问 `http://127.0.0.1:8000`，按步骤上传音频或填写音频 URL 生成字幕，也可以直接上传 SRT，随后配置角色参数触发语音合成。
 
 ## 配置说明
 
-- **recognizer.base_url**：第三方语音识别接口的基础 URL，系统会向该地址追加 `/transcribe` 路径上传音频文件。
-- **recognizer.api_key**：语音识别接口的鉴权 Token，使用 `Bearer` Header 携带。
+- **recognizer.base_url**：第三方语音识别接口的基础 URL，系统会在其后追加 `start_path` 和 `result_path`。
+- **recognizer.app_id / recognizer.access_key**：POST/轮询第三方接口时写入请求头的凭证。
+- **recognizer.api_key**：兼容旧版接口的 `Bearer` Token，可选。
+- **recognizer.start_path / recognizer.result_path**：提交识别任务与轮询结果的路径，默认为 `/transcribe` 与 `/transcribe/result`。
+- **recognizer.poll_interval_seconds / recognizer.poll_timeout_seconds**：轮询频率与最长等待时长（秒），确保异步任务完成后再取回字幕。
+- **recognizer.status_header / recognizer.message_header**：提交任务时读取响应头判断是否成功的字段名（默认 `status-code` / `message`）。
+- **recognizer.extra_headers**：需要额外附加到所有请求头部的键值对，例如区域标识等。
 - **provider.base_url**：第三方语音合成接口的基础 URL，服务会在其后追加 `/synthesize` 路径。
 - **provider.api_key**：语音合成接口的鉴权 Token，使用 `Bearer` Header 携带。
 - **provider.poll_interval_seconds**：轮询第三方任务状态的时间间隔，默认 2 秒。
@@ -103,7 +108,23 @@ apps/srt_voice_service/
 
 当未提供 `provider.base_url` 时，后端会使用 `MockVoiceProvider` 生成占位音频，便于快速预览时间轴与拼接效果。
 
-语音识别配置表单接受 `{ "recognizer": { ... } }` 的 JSON；若语音识别配置中未指定第三方接口，同样会使用内置的 `MockSpeechRecognizer` 返回示例字幕，便于端到端联调。
+语音识别配置表单接受 `{ "recognizer": { ... } }` 的 JSON；若语音识别配置中未指定第三方接口，同样会使用内置的 `MockSpeechRecognizer` 返回示例字幕，便于端到端联调。下面展示一个完整的识别配置示例：
+
+```json
+{
+  "recognizer": {
+    "base_url": "https://api.example.com/asr",
+    "app_id": "APP-ID",
+    "access_key": "ACCESS-KEY",
+    "start_path": "/recognitions",
+    "result_path": "/recognitions/result",
+    "poll_interval_seconds": 2,
+    "poll_timeout_seconds": 240,
+    "status_header": "x-status-code",
+    "message_header": "x-message"
+  }
+}
+```
 
 ## 注意事项
 

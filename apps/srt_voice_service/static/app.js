@@ -1,6 +1,8 @@
 // 页面元素引用：语音生成表单、音频识别表单以及字幕展示区
 const generationForm = document.getElementById("generation-form");
 const transcriptionForm = document.getElementById("transcription-form");
+const audioFileInput = document.getElementById("audio-file");
+const audioUrlInput = document.getElementById("audio-url");
 const transcriptsList = document.getElementById("transcripts-list");
 const transcriptSelect = document.getElementById("transcript-select");
 const selectedTranscriptInput = document.getElementById("selected-transcript-id");
@@ -175,7 +177,30 @@ transcriptSelect.addEventListener("change", (event) => {
 // 上传音频并调用语音识别接口
 transcriptionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const formData = new FormData(transcriptionForm);
+  const selectedFile = audioFileInput?.files?.[0] || null;
+  const audioUrl = (audioUrlInput?.value || "").trim();
+
+  if (!selectedFile && !audioUrl) {
+    transcriptionResult.classList.remove("hidden");
+    transcriptionMessage.textContent = "请上传音频文件或填写音频 URL。";
+    transcriptViewer.textContent = "";
+    return;
+  }
+
+  const formData = new FormData();
+  if (selectedFile) {
+    formData.append("file", selectedFile);
+  }
+  if (audioUrl) {
+    formData.append("audio_url", audioUrl);
+  }
+  const configField = transcriptionForm.elements.namedItem("config");
+  if (configField && typeof configField.value === "string") {
+    const configValue = configField.value.trim();
+    if (configValue) {
+      formData.append("config", configValue);
+    }
+  }
   transcriptionResult.classList.remove("hidden");
   transcriptionMessage.textContent = "正在上传并识别，请稍候...";
   transcriptViewer.textContent = "";

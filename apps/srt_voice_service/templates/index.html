@@ -47,15 +47,25 @@
       <section>
         <h2>步骤 1：上传音频生成智能字幕</h2>
         <form id="transcription-form">
-          <label for="audio-file">音频文件（MP3/WAV/M4A）</label>
-          <input type="file" id="audio-file" name="file" accept="audio/*" required />
+          <label for="audio-file">音频文件（MP3/WAV/M4A，可选）</label>
+          <input type="file" id="audio-file" name="file" accept="audio/*" />
+
+          <label for="audio-url">或音频地址（HTTPS 链接，可选）</label>
+          <input
+            type="url"
+            id="audio-url"
+            name="audio_url"
+            placeholder="https://example.com/podcast.mp3"
+          />
+
+          <small>提示：至少需要上传音频文件或填写音频 URL 其中之一。</small>
 
           <label for="transcription-config">识别服务配置（可选，JSON）</label>
           <textarea
             id="transcription-config"
             name="config"
             spellcheck="false"
-            placeholder='{"recognizer": {"base_url": "https://api.example.com/asr", "api_key": "TOKEN"}}'
+            placeholder='{"recognizer": {"base_url": "https://api.example.com/asr", "app_id": "APP_ID", "access_key": "ACCESS_KEY", "start_path": "/transcriptions", "result_path": "/transcriptions/result"}}'
           ></textarea>
 
           <button type="submit">生成字幕文件</button>

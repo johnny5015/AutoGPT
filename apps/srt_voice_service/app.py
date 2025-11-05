@@ -242,25 +242,41 @@ async def generate_voiceover(
 
 @app.post("/transcribe")
 async def transcribe_audio(
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    audio_url: Optional[str] = Form(None),
     config: Optional[str] = Form(None),
 ) -> JSONResponse:
-    """Generate a metadata-rich subtitle file from an uploaded audio clip."""
+    """Generate a metadata-rich subtitle file from an uploaded audio clip or URL."""
 
-    audio_payload = await file.read()
-    if not audio_payload:
-        raise HTTPException(status_code=400, detail="Uploaded音频文件为空。")
+    audio_bytes: bytes | None = None
+    filename = "audio.mp3"
+    if file is not None:
+        audio_bytes = await file.read()
+        filename = file.filename or filename
+        if not audio_bytes:
+            raise HTTPException(status_code=400, detail="上传的音频文件为空。")
+
+    audio_url_value = (audio_url or "").strip() or None
+    if audio_bytes is None and audio_url_value is None:
+        raise HTTPException(status_code=400, detail="请上传音频文件或提供音频 URL。")
 
     recognizer = _load_recognizer(config)
-    segments = recognizer.transcribe(audio_payload, file.filename or "audio.mp3")
+    segments = recognizer.transcribe(
+        audio_bytes=audio_bytes,
+        filename=filename,
+        audio_url=audio_url_value,
+    )
     if not segments:
         raise HTTPException(status_code=400, detail="识别接口未返回有效的字幕片段。")
 
     srt_text = segments_to_srt(segments)
     transcript_id = str(uuid.uuid4())
+    original_label = (
+        (file.filename if file and file.filename else None) or audio_url_value or filename
+    )
     metadata = _save_transcript(
         transcript_id,
-        file.filename or "audio.mp3",
+        original_label,
         srt_text,
         serialize_segments(segments),
     )
