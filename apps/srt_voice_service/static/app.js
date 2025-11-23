@@ -76,19 +76,49 @@ function renderTranscripts(transcripts) {
     const speakers = item.speakers && item.speakers.length ? item.speakers.join("、") : "未识别";
     const duration = item.duration_seconds ? `${item.duration_seconds.toFixed(1)}s` : "-";
 
-    article.innerHTML = `
-      <header>
-        <strong>${item.original_filename || item.id}</strong>
-      </header>
-      <p>创建时间：${createdAt}</p>
-      <p>角色：${speakers}</p>
-      <p>时长：${duration}</p>
-      <footer class="grid">
-        <a class="secondary" href="${item.download_url}" download>下载 SRT</a>
-        <button type="button" data-action="view" data-id="${item.id}">查看内容</button>
-        <button type="button" data-action="use" data-id="${item.id}">用于语音合成</button>
-      </footer>
-    `;
+    const header = document.createElement("header");
+    const title = document.createElement("strong");
+    title.textContent = item.original_filename || item.id;
+    header.appendChild(title);
+    article.appendChild(header);
+
+    const createdParagraph = document.createElement("p");
+    createdParagraph.textContent = `创建时间：${createdAt}`;
+    article.appendChild(createdParagraph);
+
+    const speakersParagraph = document.createElement("p");
+    speakersParagraph.textContent = `角色：${speakers}`;
+    article.appendChild(speakersParagraph);
+
+    const durationParagraph = document.createElement("p");
+    durationParagraph.textContent = `时长：${duration}`;
+    article.appendChild(durationParagraph);
+
+    const footer = document.createElement("footer");
+    footer.classList.add("grid");
+
+    const downloadLink = document.createElement("a");
+    downloadLink.classList.add("secondary");
+    downloadLink.href = item.download_url;
+    downloadLink.download = "";
+    downloadLink.textContent = "下载 SRT";
+    footer.appendChild(downloadLink);
+
+    const viewButton = document.createElement("button");
+    viewButton.type = "button";
+    viewButton.dataset.action = "view";
+    viewButton.dataset.id = item.id;
+    viewButton.textContent = "查看内容";
+    footer.appendChild(viewButton);
+
+    const useButton = document.createElement("button");
+    useButton.type = "button";
+    useButton.dataset.action = "use";
+    useButton.dataset.id = item.id;
+    useButton.textContent = "用于语音合成";
+    footer.appendChild(useButton);
+
+    article.appendChild(footer);
     transcriptsList.appendChild(article);
   });
 }
@@ -151,7 +181,12 @@ transcriptsList.addEventListener("click", async (event) => {
       }
       const data = await response.json();
       transcriptionResult.classList.remove("hidden");
-      transcriptionMessage.innerHTML = `来源：${data.original_filename || data.id}，<a href="${data.download_url}" download>下载</a>`;
+      transcriptionMessage.textContent = `来源：${data.original_filename || data.id}，`;
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.href = data.download_url;
+      downloadAnchor.download = "";
+      downloadAnchor.textContent = "下载";
+      transcriptionMessage.appendChild(downloadAnchor);
       transcriptViewer.textContent = data.srt || "";
       selectedTranscriptInput.value = transcriptId;
       transcriptSelect.value = transcriptId;
