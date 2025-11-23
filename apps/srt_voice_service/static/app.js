@@ -5,6 +5,14 @@ const audioFileInput = document.getElementById("audio-file");
 const audioUrlInput = document.getElementById("audio-url");
 const transcriptsList = document.getElementById("transcripts-list");
 const transcriptSelect = document.getElementById("transcript-select");
+const editTranscriptSelect = document.getElementById("edit-transcript-select");
+const loadSelectedTranscriptButton = document.getElementById("load-selected-transcript");
+const editableSrtFileInput = document.getElementById("editable-srt-file");
+const editorPanel = document.getElementById("editor-panel");
+const segmentsEditor = document.getElementById("segments-editor");
+const editorMessage = document.getElementById("editor-message");
+const editorSourceLabel = document.getElementById("editor-source-label");
+const saveEditedButton = document.getElementById("save-edited-transcript");
 const selectedTranscriptInput = document.getElementById("selected-transcript-id");
 const transcriptionResult = document.getElementById("transcription-result");
 const transcriptionMessage = document.getElementById("transcription-message");
@@ -16,6 +24,9 @@ const statusMessage = document.getElementById("status-message");
 const downloadLink = document.getElementById("download-link");
 
 let pollTimer = null;
+let editableSegments = [];
+let editingSourceTranscriptId = "";
+let editingFilename = "";
 
 function resetStatus() {
   // 在用户重新提交任务前，清空轮询器与提示信息
@@ -27,6 +38,240 @@ function resetStatus() {
   statusMessage.textContent = "";
   downloadLink.classList.add("hidden");
   downloadLink.textContent = "";
+}
+
+function formatSeconds(value) {
+  const seconds = Number(value) || 0;
+  return seconds.toFixed(2);
+}
+
+function srtTimeToSeconds(timeText) {
+  const [hms, ms] = timeText.split(",");
+  const parts = hms.split(":").map((part) => parseInt(part, 10));
+  if (parts.length !== 3 || Number.isNaN(parts[0]) || Number.isNaN(parts[1]) || Number.isNaN(parts[2])) {
+    return 0;
+  }
+  const millis = parseInt(ms, 10);
+  if (Number.isNaN(millis)) {
+    return 0;
+  }
+  return parts[0] * 3600 + parts[1] * 60 + parts[2] + millis / 1000;
+}
+
+function parseSrtText(content) {
+  const normalized = content.replace(/\r\n/g, "\n");
+  const blocks = normalized.split(/\n\n+/).filter(Boolean);
+  const parsed = [];
+
+  blocks.forEach((block) => {
+    const lines = block.split("\n").filter(Boolean);
+    if (lines.length < 2) {
+      return;
+    }
+
+    const timeMatch = lines[1].match(/(?<start>\d{2}:\d{2}:\d{2},\d{3})\s+-->\s+(?<end>\d{2}:\d{2}:\d{2},\d{3})/);
+    if (!timeMatch || !timeMatch.groups) {
+      return;
+    }
+
+    const start = srtTimeToSeconds(timeMatch.groups.start);
+    const end = srtTimeToSeconds(timeMatch.groups.end);
+    const textBody = lines.slice(2).join("\n");
+    const [firstLine, ...rest] = textBody.split(":");
+    let speaker = "Narrator";
+    let body = textBody;
+    const metadata = {};
+
+    if (rest.length) {
+      speaker = firstLine.trim() || "Narrator";
+      body = rest.join(":").trim();
+    }
+
+    if (speaker.includes("|")) {
+      const parts = speaker.split("|").map((item) => item.trim()).filter(Boolean);
+      speaker = parts.shift() || "Narrator";
+      parts.forEach((token) => {
+        const [key, value] = token.split("=");
+        if (key && value) {
+          metadata[key.trim().toLowerCase()] = value.trim();
+        }
+      });
+    }
+
+    parsed.push({
+      speaker,
+      text: body,
+      start,
+      end,
+      emotion: metadata.emotion || null,
+      tone: metadata.tone || null,
+      gender: metadata.gender || null,
+    });
+  });
+
+  return parsed;
+}
+
+function applyTimingDelta(startIndex, deltaSeconds) {
+  if (!deltaSeconds) {
+    return;
+  }
+  for (let i = startIndex; i < editableSegments.length; i += 1) {
+    editableSegments[i].start = Math.max(0, editableSegments[i].start + deltaSeconds);
+    editableSegments[i].end = Math.max(editableSegments[i].start, editableSegments[i].end + deltaSeconds);
+  }
+}
+
+function updateSegmentTiming(index, newStart, newDuration) {
+  const segment = editableSegments[index];
+  const safeStart = Math.max(0, Number.isFinite(newStart) ? newStart : segment.start);
+  const duration = Math.max(0, Number.isFinite(newDuration) ? newDuration : segment.end - segment.start);
+  const previousEnd = segment.end;
+
+  segment.start = safeStart;
+  segment.end = safeStart + duration;
+
+  const delta = segment.end - previousEnd;
+  if (delta !== 0) {
+    applyTimingDelta(index + 1, delta);
+  }
+}
+
+function setEditableSegments(segments, sourceLabel, sourceId, filename) {
+  editableSegments = segments
+    .map((segment) => ({
+      speaker: segment.speaker || "Narrator",
+      text: segment.text || "",
+      start: Number(segment.start) || 0,
+      end: Number(segment.end) || Number(segment.start) || 0,
+      emotion: segment.emotion || "",
+      tone: segment.tone || "",
+      gender: segment.gender || "",
+    }))
+    .sort((a, b) => a.start - b.start);
+
+  editingSourceTranscriptId = sourceId || "";
+  editingFilename = filename || sourceLabel || "edited_transcript.srt";
+
+  editorSourceLabel.textContent = sourceLabel;
+  editorMessage.textContent = "";
+  editorPanel.classList.remove("hidden");
+  renderSegmentsEditor();
+}
+
+function renderSegmentsEditor() {
+  segmentsEditor.innerHTML = "";
+
+  if (!editableSegments.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "当前没有可编辑的字幕片段，请先选择或上传字幕。";
+    segmentsEditor.appendChild(empty);
+    return;
+  }
+
+  editableSegments.forEach((segment, index) => {
+    const article = document.createElement("article");
+
+    const header = document.createElement("header");
+    const title = document.createElement("h4");
+    title.textContent = `片段 ${index + 1}`;
+    header.appendChild(title);
+    article.appendChild(header);
+
+    const timingRow = document.createElement("div");
+    timingRow.classList.add("grid");
+
+    const startField = document.createElement("label");
+    startField.textContent = "开始时间（秒）";
+    const startInput = document.createElement("input");
+    startInput.type = "number";
+    startInput.step = "0.1";
+    startInput.value = formatSeconds(segment.start);
+    startInput.addEventListener("change", () => {
+      const nextDuration = segment.end - segment.start;
+      updateSegmentTiming(index, parseFloat(startInput.value), nextDuration);
+      renderSegmentsEditor();
+    });
+    startField.appendChild(startInput);
+
+    const durationField = document.createElement("label");
+    durationField.textContent = "时长（秒）";
+    const durationInput = document.createElement("input");
+    durationInput.type = "number";
+    durationInput.step = "0.1";
+    durationInput.min = "0";
+    durationInput.value = formatSeconds(segment.end - segment.start);
+    durationInput.addEventListener("change", () => {
+      updateSegmentTiming(index, segment.start, parseFloat(durationInput.value));
+      renderSegmentsEditor();
+    });
+    durationField.appendChild(durationInput);
+
+    const endField = document.createElement("p");
+    endField.textContent = `结束时间：${formatSeconds(segment.end)} 秒`;
+
+    timingRow.appendChild(startField);
+    timingRow.appendChild(durationField);
+    timingRow.appendChild(endField);
+    article.appendChild(timingRow);
+
+    const speakerField = document.createElement("label");
+    speakerField.textContent = "说话人";
+    const speakerInput = document.createElement("input");
+    speakerInput.value = segment.speaker;
+    speakerInput.addEventListener("input", () => {
+      segment.speaker = speakerInput.value;
+    });
+    speakerField.appendChild(speakerInput);
+    article.appendChild(speakerField);
+
+    const emotionRow = document.createElement("div");
+    emotionRow.classList.add("grid");
+
+    const emotionField = document.createElement("label");
+    emotionField.textContent = "情感表达";
+    const emotionInput = document.createElement("input");
+    emotionInput.value = segment.emotion;
+    emotionInput.addEventListener("input", () => {
+      segment.emotion = emotionInput.value;
+    });
+    emotionField.appendChild(emotionInput);
+
+    const toneField = document.createElement("label");
+    toneField.textContent = "语气/音色";
+    const toneInput = document.createElement("input");
+    toneInput.value = segment.tone;
+    toneInput.addEventListener("input", () => {
+      segment.tone = toneInput.value;
+    });
+    toneField.appendChild(toneInput);
+
+    const genderField = document.createElement("label");
+    genderField.textContent = "性别标记（可选）";
+    const genderInput = document.createElement("input");
+    genderInput.value = segment.gender;
+    genderInput.addEventListener("input", () => {
+      segment.gender = genderInput.value;
+    });
+    genderField.appendChild(genderInput);
+
+    emotionRow.appendChild(emotionField);
+    emotionRow.appendChild(toneField);
+    emotionRow.appendChild(genderField);
+    article.appendChild(emotionRow);
+
+    const textField = document.createElement("label");
+    textField.textContent = "台词正文";
+    const textArea = document.createElement("textarea");
+    textArea.value = segment.text;
+    textArea.addEventListener("input", () => {
+      segment.text = textArea.value;
+    });
+    textField.appendChild(textArea);
+    article.appendChild(textField);
+
+    segmentsEditor.appendChild(article);
+  });
 }
 
 async function pollStatus(jobId) {
@@ -125,6 +370,13 @@ function renderTranscripts(transcripts) {
     useButton.textContent = "用于语音合成";
     footer.appendChild(useButton);
 
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.dataset.action = "edit";
+    editButton.dataset.id = item.id;
+    editButton.textContent = "编辑字幕";
+    footer.appendChild(editButton);
+
     article.appendChild(footer);
     transcriptsList.appendChild(article);
   });
@@ -133,7 +385,9 @@ function renderTranscripts(transcripts) {
 function updateTranscriptSelect(transcripts) {
   // 刷新下拉框选项，保持用户之前的选择
   const previousValue = transcriptSelect.value;
+  const previousEditValue = editTranscriptSelect.value;
   transcriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
+  editTranscriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
 
   transcripts.forEach((item) => {
     const option = document.createElement("option");
@@ -141,10 +395,18 @@ function updateTranscriptSelect(transcripts) {
     const createdAt = item.created_at ? new Date(item.created_at).toLocaleString() : "";
     option.textContent = `${item.original_filename || item.id} (${createdAt})`;
     transcriptSelect.appendChild(option);
+
+    const editOption = document.createElement("option");
+    editOption.value = item.id;
+    editOption.textContent = option.textContent;
+    editTranscriptSelect.appendChild(editOption);
   });
 
   if (previousValue) {
     transcriptSelect.value = previousValue;
+  }
+  if (previousEditValue) {
+    editTranscriptSelect.value = previousEditValue;
   }
   selectedTranscriptInput.value = transcriptSelect.value;
 }
@@ -168,6 +430,82 @@ async function fetchTranscripts() {
     transcriptsList.appendChild(errorParagraph);
     transcriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
   }
+}
+
+async function loadTranscriptIntoEditor(transcriptId) {
+  if (!transcriptId) {
+    editorMessage.textContent = "请选择需要编辑的字幕。";
+    return;
+  }
+
+  try {
+    const response = await fetch(`/transcripts/${encodeURIComponent(transcriptId)}`);
+    if (!response.ok) {
+      throw new Error("无法加载字幕详情");
+    }
+    const data = await response.json();
+    const segments = Array.isArray(data.segments) ? data.segments : [];
+    if (!segments.length && typeof data.srt === "string") {
+      setEditableSegments(parseSrtText(data.srt), data.original_filename || data.id, transcriptId, data.original_filename);
+      return;
+    }
+    setEditableSegments(segments, data.original_filename || data.id, transcriptId, data.original_filename);
+  } catch (error) {
+    editorMessage.textContent = `加载字幕失败：${error.message}`;
+    editorPanel.classList.remove("hidden");
+  }
+}
+
+function saveEditedTranscript() {
+  if (!editableSegments.length) {
+    editorMessage.textContent = "当前没有需要保存的字幕片段。";
+    return;
+  }
+
+  const payload = {
+    original_filename: editingFilename,
+    source_transcript_id: editingSourceTranscriptId || null,
+    segments: editableSegments.map((segment) => ({
+      speaker: segment.speaker || "Narrator",
+      text: segment.text || "",
+      start: Number(segment.start) || 0,
+      end: Number(segment.end) || 0,
+      emotion: segment.emotion || "",
+      tone: segment.tone || "",
+      gender: segment.gender || "",
+    })),
+  };
+
+  fetch("/transcripts/save", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "保存失败");
+      }
+      return response.json();
+    })
+    .then((data) => {
+      editorMessage.textContent = "字幕已保存，您可以下载或继续查看最新版本。";
+      if (data.metadata && data.metadata.download_url) {
+        const link = document.createElement("a");
+        link.href = data.metadata.download_url;
+        link.download = "";
+        link.textContent = "下载新字幕";
+        editorMessage.textContent = "字幕已保存，";
+        editorMessage.appendChild(link);
+        editorMessage.appendChild(document.createTextNode("，或继续调整。"));
+      }
+      fetchTranscripts();
+    })
+    .catch((error) => {
+      editorMessage.textContent = `保存失败：${error.message}`;
+    });
 }
 
 // 监听字幕卡片上的按钮，支持查看与复用字幕
@@ -213,11 +551,45 @@ transcriptsList.addEventListener("click", async (event) => {
     transcriptionMessage.textContent = "已选择该字幕用于语音生成，请在下方配置参数并提交。";
     transcriptViewer.textContent = "";
     generationForm.scrollIntoView({ behavior: "smooth" });
+  } else if (action === "edit") {
+    loadTranscriptIntoEditor(transcriptId);
+    editorPanel.scrollIntoView({ behavior: "smooth" });
   }
 });
 
 transcriptSelect.addEventListener("change", (event) => {
   selectedTranscriptInput.value = event.target.value;
+});
+
+loadSelectedTranscriptButton.addEventListener("click", () => {
+  const chosen = editTranscriptSelect.value;
+  loadTranscriptIntoEditor(chosen);
+});
+
+editableSrtFileInput.addEventListener("change", (event) => {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const content = reader.result || "";
+    const text = typeof content === "string" ? content : "";
+    const parsed = parseSrtText(text);
+    if (!parsed.length) {
+      editorMessage.textContent = "无法从上传的文件解析出字幕片段，请确认格式正确。";
+      editorPanel.classList.remove("hidden");
+      return;
+    }
+    setEditableSegments(parsed, file.name, "", file.name);
+    editorPanel.scrollIntoView({ behavior: "smooth" });
+  };
+  reader.readAsText(file, "utf-8");
+});
+
+saveEditedButton.addEventListener("click", () => {
+  saveEditedTranscript();
 });
 
 // 上传音频并调用语音识别接口

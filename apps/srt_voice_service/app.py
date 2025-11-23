@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -18,6 +19,7 @@ from .services.audio_stitcher import AudioTimelineBuilder
 from .services.config import GenerationConfig, RecognizerProviderConfig
 from .services.speech_recognizer import (
     MockSpeechRecognizer,
+    RecognizedSegment,
     SpeechRecognizer,
     ThirdPartySpeechRecognizer,
     segments_to_srt,
@@ -32,6 +34,8 @@ GENERATED_DIR = APP_DIR / "generated"
 TRANSCRIPTS_DIR = APP_DIR / "transcripts"
 GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
+ARCHIVE_DIR = TRANSCRIPTS_DIR / "archive"
+ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="SRT Voice Composer")
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
@@ -164,6 +168,8 @@ def _save_transcript(
     original_filename: str,
     srt_text: str,
     segments: list[dict[str, object]],
+    *,
+    edited_from: str | None = None,
 ) -> dict[str, Any]:
     """将识别得到的字幕内容与元数据写入磁盘。"""
 
@@ -184,9 +190,96 @@ def _save_transcript(
         "emotions": sorted({segment.get("emotion") for segment in segments if segment.get("emotion")}),
         "tones": sorted({segment.get("tone") for segment in segments if segment.get("tone")}),
         "srt_path": str(srt_path.relative_to(APP_DIR)),
+        "segments": segments,
     }
+    if edited_from:
+        metadata["edited_from"] = edited_from
     metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     return metadata
+
+
+def _archive_transcript(transcript_id: str) -> None:
+    """将旧的字幕与元数据拷贝到归档目录，便于回溯版本。"""
+
+    archive_base = ARCHIVE_DIR / transcript_id
+    archive_base.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+
+    srt_path = _transcript_file_path(transcript_id)
+    metadata_path = _transcript_metadata_path(transcript_id)
+    if not srt_path.exists() and not metadata_path.exists():
+        raise HTTPException(status_code=404, detail="Transcript to archive was not found")
+
+    if srt_path.exists():
+        shutil.copy2(srt_path, archive_base / f"{timestamp}.srt")
+    if metadata_path.exists():
+        shutil.copy2(metadata_path, archive_base / f"{timestamp}.json")
+
+
+def _deserialize_segments(payload: Sequence[Mapping[str, object]] | None) -> list[RecognizedSegment]:
+    """Validate并转换前端传入的片段列表。"""
+
+    if not payload:
+        raise HTTPException(status_code=400, detail="请至少提供一个字幕片段。")
+
+    segments: list[RecognizedSegment] = []
+    for index, entry in enumerate(payload):
+        if not isinstance(entry, Mapping):
+            raise HTTPException(status_code=400, detail=f"第 {index + 1} 个片段格式无效。")
+
+        try:
+            start = float(entry.get("start", 0.0))
+            end = float(entry.get("end", start))
+        except (TypeError, ValueError) as exc:  # pragma: no cover - defensive
+            raise HTTPException(status_code=400, detail=f"第 {index + 1} 个片段的时间格式错误。") from exc
+
+        if start < 0:
+            start = 0.0
+        if end < start:
+            end = start
+
+        speaker = str(entry.get("speaker") or "Narrator")
+        text = str(entry.get("text") or "").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail=f"第 {index + 1} 个片段缺少正文内容。")
+
+        segments.append(
+            RecognizedSegment(
+                speaker=speaker,
+                text=text,
+                start=timedelta(seconds=start),
+                end=timedelta(seconds=end),
+                emotion=str(entry.get("emotion") or "").strip() or None,
+                tone=str(entry.get("tone") or "").strip() or None,
+                gender=str(entry.get("gender") or "").strip() or None,
+            )
+        )
+
+    return segments
+
+
+def _segment_payloads(transcript_id: str) -> list[dict[str, object]]:
+    """将 SRT 解析为可编辑的片段列表。"""
+
+    try:
+        transcript_text = _load_transcript_srt(transcript_id)
+    except HTTPException:
+        return []
+
+    parsed = []
+    for entry in parse_srt(transcript_text):
+        parsed.append(
+            {
+                "speaker": entry.speaker,
+                "text": entry.text,
+                "start": entry.start.total_seconds(),
+                "end": entry.end.total_seconds(),
+                "emotion": entry.emotion,
+                "tone": entry.tone,
+                "gender": entry.gender,
+            }
+        )
+    return parsed
 
 
 def _load_transcript_metadata(transcript_id: str) -> dict[str, Any]:
@@ -217,6 +310,12 @@ def _list_transcripts() -> list[dict[str, Any]]:
     for transcript in transcripts:
         transcript["download_url"] = f"/transcripts/{transcript['id']}/download"
     return transcripts
+
+
+def _serialize_segments_for_metadata(segments: Iterable[RecognizedSegment]) -> list[dict[str, object]]:
+    """将内部片段对象转为可写入磁盘的 JSON 列表。"""
+
+    return serialize_segments(segments)
 
 
 @app.post("/generate")
@@ -304,6 +403,7 @@ async def get_transcript(transcript_id: str) -> JSONResponse:
     srt_text = _load_transcript_srt(transcript_id)
     metadata["download_url"] = f"/transcripts/{transcript_id}/download"
     metadata["srt"] = srt_text
+    metadata["segments"] = metadata.get("segments") or _segment_payloads(transcript_id)
     return JSONResponse(metadata)
 
 
@@ -337,6 +437,40 @@ async def generate_from_transcript(
 
     background_tasks.add_task(_process_generation, job_id, srt_text.encode("utf-8"), generation_config)
     return JSONResponse({"job_id": job_id})
+
+
+@app.post("/transcripts/save")
+async def save_transcript(
+    payload: Mapping[str, object] = Body(..., embed=False),
+) -> JSONResponse:
+    """保存前端编辑好的字幕，支持对历史字幕的版本化存档。"""
+
+    segments_payload = payload.get("segments") if isinstance(payload, Mapping) else None
+    if not isinstance(segments_payload, Sequence):
+        raise HTTPException(status_code=400, detail="缺少片段列表。")
+
+    original_filename = str(payload.get("original_filename") or "edited_transcript.srt")
+    source_transcript_id = str(payload.get("source_transcript_id") or "").strip() or None
+
+    if source_transcript_id:
+        _archive_transcript(source_transcript_id)
+
+    segments = sorted(
+        _deserialize_segments(segments_payload), key=lambda item: item.start.total_seconds()
+    )
+    srt_text = segments_to_srt(segments)
+    transcript_id = str(uuid.uuid4())
+
+    metadata = _save_transcript(
+        transcript_id,
+        original_filename,
+        srt_text,
+        _serialize_segments_for_metadata(segments),
+        edited_from=source_transcript_id,
+    )
+    metadata["download_url"] = f"/transcripts/{transcript_id}/download"
+    metadata["srt"] = srt_text
+    return JSONResponse({"transcript_id": transcript_id, "metadata": metadata})
 
 
 @app.get("/status/{job_id}")

@@ -84,6 +84,38 @@
       </section>
 
       <section>
+        <h2>步骤 2.1：编辑与修订字幕</h2>
+        <p>选择已有字幕或上传新的 SRT 文件，按时间轴逐条修改说话人、文本和情绪，并保存为新的字幕版本。</p>
+
+        <div class="grid">
+          <div>
+            <label for="edit-transcript-select">选择需要编辑的历史字幕</label>
+            <select id="edit-transcript-select">
+              <option value="">-- 请选择已有字幕 --</option>
+            </select>
+            <button type="button" id="load-selected-transcript">载入选中的字幕</button>
+          </div>
+
+          <div>
+            <label for="editable-srt-file">或上传字幕文件并进入编辑</label>
+            <input type="file" id="editable-srt-file" accept=".srt" />
+          </div>
+        </div>
+
+        <article id="editor-panel" class="hidden">
+          <header>
+            <h3>字幕片段编辑</h3>
+            <p id="editor-source-label" aria-live="polite"></p>
+          </header>
+          <div id="segments-editor" class="grid"></div>
+          <footer>
+            <button type="button" id="save-edited-transcript">保存并生成新字幕</button>
+            <p id="editor-message" class="contrast"></p>
+          </footer>
+        </article>
+      </section>
+
+      <section>
         <h2>步骤 3：使用字幕生成语音</h2>
         <form id="generation-form">
           <fieldset>
