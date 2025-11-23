@@ -26,7 +26,7 @@ function resetStatus() {
   progressBar.style.width = "0%";
   statusMessage.textContent = "";
   downloadLink.classList.add("hidden");
-  downloadLink.innerHTML = "";
+  downloadLink.textContent = "";
 }
 
 async function pollStatus(jobId) {
@@ -45,7 +45,12 @@ async function pollStatus(jobId) {
         clearInterval(pollTimer);
         pollTimer = null;
         if (data.download_url) {
-          downloadLink.innerHTML = `<a href="${data.download_url}" download>下载生成的 MP3</a>`;
+          downloadLink.textContent = "";
+          const link = document.createElement("a");
+          link.href = data.download_url;
+          link.download = "";
+          link.textContent = "下载生成的 MP3";
+          downloadLink.appendChild(link);
           downloadLink.classList.remove("hidden");
         }
       } else if (data.status === "failed") {
@@ -66,7 +71,9 @@ function renderTranscripts(transcripts) {
   transcriptsList.innerHTML = "";
 
   if (!transcripts.length) {
-    transcriptsList.innerHTML = "<p>暂无字幕文件，您可以先上传音频进行识别。</p>";
+    const emptyMessage = document.createElement("p");
+    emptyMessage.textContent = "暂无字幕文件，您可以先上传音频进行识别。";
+    transcriptsList.appendChild(emptyMessage);
     return;
   }
 
@@ -154,7 +161,11 @@ async function fetchTranscripts() {
     renderTranscripts(transcripts);
     updateTranscriptSelect(transcripts);
   } catch (error) {
-    transcriptsList.innerHTML = `<p class="contrast">加载字幕列表失败：${error.message}</p>`;
+    transcriptsList.innerHTML = "";
+    const errorParagraph = document.createElement("p");
+    errorParagraph.classList.add("contrast");
+    errorParagraph.textContent = `加载字幕列表失败：${error.message}`;
+    transcriptsList.appendChild(errorParagraph);
     transcriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
   }
 }
@@ -252,7 +263,13 @@ transcriptionForm.addEventListener("submit", async (event) => {
     }
 
     const data = await response.json();
-    transcriptionMessage.innerHTML = `字幕已生成，可 <a href="${data.download_url}" download>下载 SRT 文件</a>。`;
+    transcriptionMessage.textContent = "字幕已生成，可 ";
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.href = data.download_url;
+    downloadAnchor.download = "";
+    downloadAnchor.textContent = "下载 SRT 文件";
+    transcriptionMessage.appendChild(downloadAnchor);
+    transcriptionMessage.appendChild(document.createTextNode("。"));
     transcriptViewer.textContent = data.srt || "";
     await fetchTranscripts();
     transcriptSelect.value = data.transcript_id;
