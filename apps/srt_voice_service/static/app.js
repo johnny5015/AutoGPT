@@ -456,7 +456,7 @@ async function loadTranscriptIntoEditor(transcriptId) {
   }
 }
 
-function saveEditedTranscript() {
+async function saveEditedTranscript() {
   if (!editableSegments.length) {
     editorMessage.textContent = "当前没有需要保存的字幕片段。";
     return;
@@ -476,36 +476,55 @@ function saveEditedTranscript() {
     })),
   };
 
-  fetch("/transcripts/save", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "保存失败");
-      }
-      return response.json();
-    })
-    .then((data) => {
-      editorMessage.textContent = "字幕已保存，您可以下载或继续查看最新版本。";
-      if (data.metadata && data.metadata.download_url) {
-        const link = document.createElement("a");
-        link.href = data.metadata.download_url;
-        link.download = "";
-        link.textContent = "下载新字幕";
-        editorMessage.textContent = "字幕已保存，";
-        editorMessage.appendChild(link);
-        editorMessage.appendChild(document.createTextNode("，或继续调整。"));
-      }
-      fetchTranscripts();
-    })
-    .catch((error) => {
-      editorMessage.textContent = `保存失败：${error.message}`;
+  try {
+    const response = await fetch("/transcripts/save", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "保存失败");
+    }
+
+    const data = await response.json();
+    const metadata = data.metadata || {};
+    const transcriptId = data.transcript_id || metadata.id || editingSourceTranscriptId || "";
+    const label = metadata.original_filename || metadata.id || transcriptId || "edited_transcript.srt";
+
+    editingSourceTranscriptId = transcriptId;
+    editingFilename = metadata.original_filename || editingFilename;
+
+    const refreshedSegments = Array.isArray(metadata.segments) ? metadata.segments : [];
+    if (refreshedSegments.length) {
+      setEditableSegments(refreshedSegments, label, transcriptId, editingFilename);
+    } else if (typeof metadata.srt === "string") {
+      setEditableSegments(parseSrtText(metadata.srt), label, transcriptId, editingFilename);
+    }
+
+    editorMessage.textContent = "字幕已保存，您可以下载或继续查看最新版本。";
+    if (metadata.download_url) {
+      const link = document.createElement("a");
+      link.href = metadata.download_url;
+      link.download = "";
+      link.textContent = "下载新字幕";
+      editorMessage.textContent = "字幕已保存，";
+      editorMessage.appendChild(link);
+      editorMessage.appendChild(document.createTextNode("，或继续调整。"));
+    }
+
+    await fetchTranscripts();
+    if (transcriptId) {
+      transcriptSelect.value = transcriptId;
+      editTranscriptSelect.value = transcriptId;
+      selectedTranscriptInput.value = transcriptId;
+    }
+  } catch (error) {
+    editorMessage.textContent = `保存失败：${error.message}`;
+  }
 }
 
 // 监听字幕卡片上的按钮，支持查看与复用字幕
