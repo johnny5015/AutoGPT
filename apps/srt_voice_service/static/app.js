@@ -27,6 +27,9 @@ let pollTimer = null;
 let editableSegments = [];
 let editingSourceTranscriptId = "";
 let editingFilename = "";
+let currentSegmentPage = 1;
+
+const SEGMENTS_PER_PAGE = 40;
 
 function resetStatus() {
   // 在用户重新提交任务前，清空轮询器与提示信息
@@ -43,6 +46,12 @@ function resetStatus() {
 function formatSeconds(value) {
   const seconds = Number(value) || 0;
   return seconds.toFixed(2);
+}
+
+function segmentDuration(segment) {
+  const startValue = Number(segment.start) || 0;
+  const endValue = Number(segment.end) || 0;
+  return Math.max(0, endValue - startValue);
 }
 
 function srtTimeToSeconds(timeText) {
@@ -112,29 +121,27 @@ function parseSrtText(content) {
   return parsed;
 }
 
-function applyTimingDelta(startIndex, deltaSeconds) {
-  if (!deltaSeconds) {
+function realignTimelineFrom(index) {
+  if (!editableSegments.length) {
     return;
   }
+  const startIndex = Math.max(0, index);
   for (let i = startIndex; i < editableSegments.length; i += 1) {
-    editableSegments[i].start = Math.max(0, editableSegments[i].start + deltaSeconds);
-    editableSegments[i].end = Math.max(editableSegments[i].start, editableSegments[i].end + deltaSeconds);
+    const baseStart = i === 0 ? Math.max(0, editableSegments[0].start || 0) : editableSegments[i - 1].end;
+    const duration = segmentDuration(editableSegments[i]);
+    editableSegments[i].start = baseStart;
+    editableSegments[i].end = baseStart + duration;
   }
 }
 
 function updateSegmentTiming(index, newStart, newDuration) {
   const segment = editableSegments[index];
   const safeStart = Math.max(0, Number.isFinite(newStart) ? newStart : segment.start);
-  const duration = Math.max(0, Number.isFinite(newDuration) ? newDuration : segment.end - segment.start);
-  const previousEnd = segment.end;
+  const duration = Math.max(0, Number.isFinite(newDuration) ? newDuration : segmentDuration(segment));
 
   segment.start = safeStart;
   segment.end = safeStart + duration;
-
-  const delta = segment.end - previousEnd;
-  if (delta !== 0) {
-    applyTimingDelta(index + 1, delta);
-  }
+  realignTimelineFrom(index);
 }
 
 function setEditableSegments(segments, sourceLabel, sourceId, filename) {
@@ -150,13 +157,76 @@ function setEditableSegments(segments, sourceLabel, sourceId, filename) {
     }))
     .sort((a, b) => a.start - b.start);
 
+  realignTimelineFrom(0);
   editingSourceTranscriptId = sourceId || "";
   editingFilename = filename || sourceLabel || "edited_transcript.srt";
+  currentSegmentPage = 1;
 
   editorSourceLabel.textContent = sourceLabel;
   editorMessage.textContent = "";
   editorPanel.classList.remove("hidden");
   renderSegmentsEditor();
+}
+
+function createPaginationControls(totalPages) {
+  const pagination = document.createElement("div");
+  pagination.classList.add("segment-pagination");
+
+  const info = document.createElement("span");
+  info.textContent = `第 ${currentSegmentPage} / ${totalPages} 页（共 ${editableSegments.length} 条）`;
+  pagination.appendChild(info);
+
+  const actions = document.createElement("div");
+  actions.classList.add("segment-pagination-actions");
+
+  const prevButton = document.createElement("button");
+  prevButton.type = "button";
+  prevButton.textContent = "上一页";
+  prevButton.disabled = currentSegmentPage === 1;
+  prevButton.addEventListener("click", () => {
+    currentSegmentPage = Math.max(1, currentSegmentPage - 1);
+    renderSegmentsEditor();
+  });
+
+  const nextButton = document.createElement("button");
+  nextButton.type = "button";
+  nextButton.textContent = "下一页";
+  nextButton.disabled = currentSegmentPage >= totalPages;
+  nextButton.addEventListener("click", () => {
+    currentSegmentPage = Math.min(totalPages, currentSegmentPage + 1);
+    renderSegmentsEditor();
+  });
+
+  const realignButton = document.createElement("button");
+  realignButton.type = "button";
+  realignButton.classList.add("secondary");
+  realignButton.textContent = "重新计算时间轴";
+  realignButton.addEventListener("click", () => {
+    realignTimelineFrom(0);
+    renderSegmentsEditor();
+  });
+
+  const jumpField = document.createElement("label");
+  jumpField.classList.add("segment-jump");
+  jumpField.textContent = "跳转页码";
+  const jumpInput = document.createElement("input");
+  jumpInput.type = "number";
+  jumpInput.min = "1";
+  jumpInput.max = String(totalPages);
+  jumpInput.value = String(currentSegmentPage);
+  jumpInput.addEventListener("change", () => {
+    const desired = Math.max(1, Math.min(totalPages, parseInt(jumpInput.value, 10) || 1));
+    currentSegmentPage = desired;
+    renderSegmentsEditor();
+  });
+  jumpField.appendChild(jumpInput);
+
+  actions.appendChild(prevButton);
+  actions.appendChild(nextButton);
+  actions.appendChild(realignButton);
+  actions.appendChild(jumpField);
+  pagination.appendChild(actions);
+  return pagination;
 }
 
 function renderSegmentsEditor() {
@@ -169,17 +239,31 @@ function renderSegmentsEditor() {
     return;
   }
 
-  editableSegments.forEach((segment, index) => {
+  const totalPages = Math.max(1, Math.ceil(editableSegments.length / SEGMENTS_PER_PAGE));
+  currentSegmentPage = Math.min(currentSegmentPage, totalPages);
+  const startIndex = (currentSegmentPage - 1) * SEGMENTS_PER_PAGE;
+  const endIndex = Math.min(startIndex + SEGMENTS_PER_PAGE, editableSegments.length);
+
+  segmentsEditor.appendChild(createPaginationControls(totalPages));
+
+  editableSegments.slice(startIndex, endIndex).forEach((segment, offset) => {
+    const index = startIndex + offset;
     const article = document.createElement("article");
+    article.classList.add("segment-card");
 
     const header = document.createElement("header");
     const title = document.createElement("h4");
     title.textContent = `片段 ${index + 1}`;
+
+    const timingHint = document.createElement("small");
+    timingHint.classList.add("segment-time");
+    timingHint.textContent = `开始 ${formatSeconds(segment.start)}s · 结束 ${formatSeconds(segment.end)}s`;
     header.appendChild(title);
+    header.appendChild(timingHint);
     article.appendChild(header);
 
     const timingRow = document.createElement("div");
-    timingRow.classList.add("grid");
+    timingRow.classList.add("segment-timing");
 
     const startField = document.createElement("label");
     startField.textContent = "开始时间（秒）";
@@ -188,7 +272,7 @@ function renderSegmentsEditor() {
     startInput.step = "0.1";
     startInput.value = formatSeconds(segment.start);
     startInput.addEventListener("change", () => {
-      const nextDuration = segment.end - segment.start;
+      const nextDuration = segmentDuration(segment);
       updateSegmentTiming(index, parseFloat(startInput.value), nextDuration);
       renderSegmentsEditor();
     });
@@ -200,7 +284,7 @@ function renderSegmentsEditor() {
     durationInput.type = "number";
     durationInput.step = "0.1";
     durationInput.min = "0";
-    durationInput.value = formatSeconds(segment.end - segment.start);
+    durationInput.value = formatSeconds(segmentDuration(segment));
     durationInput.addEventListener("change", () => {
       updateSegmentTiming(index, segment.start, parseFloat(durationInput.value));
       renderSegmentsEditor();
@@ -208,6 +292,7 @@ function renderSegmentsEditor() {
     durationField.appendChild(durationInput);
 
     const endField = document.createElement("p");
+    endField.classList.add("segment-end");
     endField.textContent = `结束时间：${formatSeconds(segment.end)} 秒`;
 
     timingRow.appendChild(startField);
@@ -226,7 +311,7 @@ function renderSegmentsEditor() {
     article.appendChild(speakerField);
 
     const emotionRow = document.createElement("div");
-    emotionRow.classList.add("grid");
+    emotionRow.classList.add("segment-meta");
 
     const emotionField = document.createElement("label");
     emotionField.textContent = "情感表达";
@@ -272,6 +357,8 @@ function renderSegmentsEditor() {
 
     segmentsEditor.appendChild(article);
   });
+
+  segmentsEditor.appendChild(createPaginationControls(totalPages));
 }
 
 async function pollStatus(jobId) {
