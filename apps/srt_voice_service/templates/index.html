@@ -147,8 +147,26 @@
 
       <section>
         <h2>步骤 2.1：编辑与修订字幕</h2>
-        <p>在新页面打开字幕编辑器，减少对主页面的干扰并便于专注编辑。</p>
-        <a class="secondary" href="/editor" target="_blank" rel="noreferrer">在新页面打开字幕编辑器</a>
+        <p>选择已有字幕或上传 SRT 文件，所有查看与编辑操作都会在新的编辑页面中完成，且保留下载入口。</p>
+        <div class="grid">
+          <div>
+            <label for="editor-launch-select">选择已有字幕并跳转</label>
+            <select id="editor-launch-select">
+              <option value="">-- 请选择已有字幕 --</option>
+            </select>
+            <div class="grid">
+              <button type="button" id="view-in-editor">在新页面查看</button>
+              <button type="button" id="edit-in-editor">在新页面编辑</button>
+            </div>
+          </div>
+          <div>
+            <label for="launch-editor-upload">或上传字幕文件后新页编辑</label>
+            <input type="file" id="launch-editor-upload" accept=".srt" />
+            <small>支持直接读取上传文件内容并带入新页面编辑。</small>
+          </div>
+        </div>
+        <p id="editor-launch-message" class="contrast"></p>
+        <a class="secondary" href="/editor" target="_blank" rel="noreferrer">直接打开空白编辑器</a>
       </section>
 
       <section>
