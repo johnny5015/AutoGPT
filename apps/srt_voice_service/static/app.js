@@ -48,6 +48,17 @@ function formatSeconds(value) {
   return seconds.toFixed(2);
 }
 
+function secondsToSrtTime(value) {
+  const totalMillis = Math.max(0, Math.round((Number(value) || 0) * 1000));
+  const hours = Math.floor(totalMillis / 3600000);
+  const minutes = Math.floor((totalMillis % 3600000) / 60000);
+  const seconds = Math.floor((totalMillis % 60000) / 1000);
+  const milliseconds = totalMillis % 1000;
+
+  const pad = (num, size) => String(num).padStart(size, "0");
+  return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(milliseconds, 3)}`;
+}
+
 function segmentDuration(segment) {
   const startValue = Number(segment.start) || 0;
   const endValue = Number(segment.end) || 0;
@@ -257,7 +268,7 @@ function renderSegmentsEditor() {
 
     const timingHint = document.createElement("small");
     timingHint.classList.add("segment-time");
-    timingHint.textContent = `开始 ${formatSeconds(segment.start)}s · 结束 ${formatSeconds(segment.end)}s`;
+    timingHint.textContent = `开始 ${secondsToSrtTime(segment.start)} · 结束 ${secondsToSrtTime(segment.end)}`;
     header.appendChild(title);
     header.appendChild(timingHint);
     article.appendChild(header);
@@ -266,14 +277,20 @@ function renderSegmentsEditor() {
     timingRow.classList.add("segment-timing");
 
     const startField = document.createElement("label");
-    startField.textContent = "开始时间（秒）";
+    startField.textContent = "开始时间（SRT 格式）";
     const startInput = document.createElement("input");
-    startInput.type = "number";
-    startInput.step = "0.1";
-    startInput.value = formatSeconds(segment.start);
+    startInput.type = "text";
+    startInput.inputMode = "numeric";
+    startInput.pattern = "\\d{2}:\\d{2}:\\d{2},\\d{3}";
+    startInput.placeholder = "00:00:03,500";
+    startInput.value = secondsToSrtTime(segment.start);
     startInput.addEventListener("change", () => {
       const nextDuration = segmentDuration(segment);
-      updateSegmentTiming(index, parseFloat(startInput.value), nextDuration);
+      const parsed = startInput.value.trim();
+      const useSeconds = parsed.match(/\d{2}:\d{2}:\d{2},\d{3}/)
+        ? srtTimeToSeconds(parsed)
+        : parseFloat(parsed);
+      updateSegmentTiming(index, useSeconds, nextDuration);
       renderSegmentsEditor();
     });
     startField.appendChild(startInput);
@@ -293,7 +310,7 @@ function renderSegmentsEditor() {
 
     const endField = document.createElement("p");
     endField.classList.add("segment-end");
-    endField.textContent = `结束时间：${formatSeconds(segment.end)} 秒`;
+    endField.textContent = `结束时间：${secondsToSrtTime(segment.end)}`;
 
     timingRow.appendChild(startField);
     timingRow.appendChild(durationField);
