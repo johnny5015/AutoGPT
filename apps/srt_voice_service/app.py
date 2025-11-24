@@ -52,6 +52,12 @@ async def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/editor", response_class=HTMLResponse)
+async def editor(request: Request) -> HTMLResponse:
+    """Render the subtitle editing experience on a dedicated page."""
+    return templates.TemplateResponse("editor.html", {"request": request})
+
+
 def _load_generation_config(raw_config: str | None) -> GenerationConfig:
     """加载前端传入的语音合成配置，并转换为内部模型。"""
     if not raw_config:

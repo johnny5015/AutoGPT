@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>字幕编辑器 - 多角色语音合成</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <style>
+      body {
+        padding: 2rem;
+      }
+      textarea {
+        min-height: 200px;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+      #segments-editor {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+      #segments-editor label {
+        font-size: 0.9rem;
+      }
+      #segments-editor input,
+      #segments-editor textarea {
+        font-size: 0.95rem;
+      }
+      #segments-editor textarea {
+        min-height: 120px;
+      }
+      .segment-card {
+        font-size: 0.95rem;
+        padding: 1rem;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 10px;
+      }
+      .segment-card h4 {
+        margin: 0;
+        font-size: 1rem;
+      }
+      .segment-time {
+        display: block;
+        color: #666;
+        margin-top: 0.25rem;
+        font-size: 0.85rem;
+      }
+      .segment-timing,
+      .segment-meta {
+        display: grid;
+        gap: 0.75rem;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        align-items: flex-end;
+      }
+      .segment-end {
+        margin: 0;
+        color: #666;
+      }
+      .segment-pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        font-size: 0.9rem;
+      }
+      .segment-pagination-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .segment-jump {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body data-page="editor">
+    <main class="container">
+      <h1>字幕编辑与修订</h1>
+      <p>选择已有字幕或上传新的 SRT 文件，按时间轴逐条修改说话人、文本和情绪，并保存为新的字幕版本。</p>
+
+      <section>
+        <div class="grid">
+          <div>
+            <label for="edit-transcript-select">选择需要编辑的历史字幕</label>
+            <select id="edit-transcript-select">
+              <option value="">-- 请选择已有字幕 --</option>
+            </select>
+            <button type="button" id="load-selected-transcript">载入选中的字幕</button>
+          </div>
+
+          <div>
+            <label for="editable-srt-file">或上传字幕文件并进入编辑</label>
+            <input type="file" id="editable-srt-file" accept=".srt" />
+          </div>
+        </div>
+
+        <article id="editor-panel" class="hidden">
+          <header>
+            <h3>字幕片段编辑</h3>
+            <p id="editor-source-label" aria-live="polite"></p>
+          </header>
+          <div id="segments-editor" class="grid"></div>
+          <footer>
+            <button type="button" id="save-edited-transcript">保存并生成新字幕</button>
+            <p id="editor-message" class="contrast"></p>
+          </footer>
+        </article>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

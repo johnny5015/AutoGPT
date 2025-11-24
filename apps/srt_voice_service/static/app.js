@@ -156,6 +156,9 @@ function updateSegmentTiming(index, newStart, newDuration) {
 }
 
 function setEditableSegments(segments, sourceLabel, sourceId, filename) {
+  if (!segmentsEditor || !editorPanel) {
+    return;
+  }
   editableSegments = segments
     .map((segment) => ({
       speaker: segment.speaker || "Narrator",
@@ -241,6 +244,9 @@ function createPaginationControls(totalPages) {
 }
 
 function renderSegmentsEditor() {
+  if (!segmentsEditor) {
+    return;
+  }
   segmentsEditor.innerHTML = "";
 
   if (!editableSegments.length) {
@@ -417,6 +423,9 @@ async function pollStatus(jobId) {
 
 function renderTranscripts(transcripts) {
   // 渲染历史字幕列表，便于复用
+  if (!transcriptsList) {
+    return;
+  }
   transcriptsList.innerHTML = "";
 
   if (!transcripts.length) {
@@ -488,31 +497,43 @@ function renderTranscripts(transcripts) {
 
 function updateTranscriptSelect(transcripts) {
   // 刷新下拉框选项，保持用户之前的选择
-  const previousValue = transcriptSelect.value;
-  const previousEditValue = editTranscriptSelect.value;
-  transcriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
-  editTranscriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
+  const previousValue = transcriptSelect?.value || "";
+  const previousEditValue = editTranscriptSelect?.value || "";
+
+  if (transcriptSelect) {
+    transcriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
+  }
+  if (editTranscriptSelect) {
+    editTranscriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
+  }
 
   transcripts.forEach((item) => {
-    const option = document.createElement("option");
-    option.value = item.id;
     const createdAt = item.created_at ? new Date(item.created_at).toLocaleString() : "";
-    option.textContent = `${item.original_filename || item.id} (${createdAt})`;
-    transcriptSelect.appendChild(option);
 
-    const editOption = document.createElement("option");
-    editOption.value = item.id;
-    editOption.textContent = option.textContent;
-    editTranscriptSelect.appendChild(editOption);
+    if (transcriptSelect) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = `${item.original_filename || item.id} (${createdAt})`;
+      transcriptSelect.appendChild(option);
+    }
+
+    if (editTranscriptSelect) {
+      const editOption = document.createElement("option");
+      editOption.value = item.id;
+      editOption.textContent = `${item.original_filename || item.id} (${createdAt})`;
+      editTranscriptSelect.appendChild(editOption);
+    }
   });
 
-  if (previousValue) {
+  if (previousValue && transcriptSelect) {
     transcriptSelect.value = previousValue;
   }
-  if (previousEditValue) {
+  if (previousEditValue && editTranscriptSelect) {
     editTranscriptSelect.value = previousEditValue;
   }
-  selectedTranscriptInput.value = transcriptSelect.value;
+  if (selectedTranscriptInput && transcriptSelect) {
+    selectedTranscriptInput.value = transcriptSelect.value;
+  }
 }
 
 async function fetchTranscripts() {
@@ -526,19 +547,31 @@ async function fetchTranscripts() {
     const transcripts = data.transcripts || [];
     renderTranscripts(transcripts);
     updateTranscriptSelect(transcripts);
+    return transcripts;
   } catch (error) {
-    transcriptsList.innerHTML = "";
-    const errorParagraph = document.createElement("p");
-    errorParagraph.classList.add("contrast");
-    errorParagraph.textContent = `加载字幕列表失败：${error.message}`;
-    transcriptsList.appendChild(errorParagraph);
-    transcriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
+    if (transcriptsList) {
+      transcriptsList.innerHTML = "";
+      const errorParagraph = document.createElement("p");
+      errorParagraph.classList.add("contrast");
+      errorParagraph.textContent = `加载字幕列表失败：${error.message}`;
+      transcriptsList.appendChild(errorParagraph);
+    }
+    if (transcriptSelect) {
+      transcriptSelect.innerHTML = '<option value="">-- 请选择已有字幕 --</option>';
+    }
+    return [];
   }
 }
 
 async function loadTranscriptIntoEditor(transcriptId) {
   if (!transcriptId) {
-    editorMessage.textContent = "请选择需要编辑的字幕。";
+    if (editorMessage) {
+      editorMessage.textContent = "请选择需要编辑的字幕。";
+    }
+    return;
+  }
+
+  if (!segmentsEditor || !editorPanel) {
     return;
   }
 
@@ -555,14 +588,23 @@ async function loadTranscriptIntoEditor(transcriptId) {
     }
     setEditableSegments(segments, data.original_filename || data.id, transcriptId, data.original_filename);
   } catch (error) {
-    editorMessage.textContent = `加载字幕失败：${error.message}`;
-    editorPanel.classList.remove("hidden");
+    if (editorMessage) {
+      editorMessage.textContent = `加载字幕失败：${error.message}`;
+    }
+    if (editorPanel) {
+      editorPanel.classList.remove("hidden");
+    }
   }
 }
 
 async function saveEditedTranscript() {
+  if (!segmentsEditor || !editorPanel) {
+    return;
+  }
   if (!editableSegments.length) {
-    editorMessage.textContent = "当前没有需要保存的字幕片段。";
+    if (editorMessage) {
+      editorMessage.textContent = "当前没有需要保存的字幕片段。";
+    }
     return;
   }
 
@@ -609,15 +651,17 @@ async function saveEditedTranscript() {
       setEditableSegments(parseSrtText(metadata.srt), label, transcriptId, editingFilename);
     }
 
-    editorMessage.textContent = "字幕已保存，您可以下载或继续查看最新版本。";
-    if (metadata.download_url) {
-      const link = document.createElement("a");
-      link.href = metadata.download_url;
-      link.download = "";
-      link.textContent = "下载新字幕";
-      editorMessage.textContent = "字幕已保存，";
-      editorMessage.appendChild(link);
-      editorMessage.appendChild(document.createTextNode("，或继续调整。"));
+    if (editorMessage) {
+      editorMessage.textContent = "字幕已保存，您可以下载或继续查看最新版本。";
+      if (metadata.download_url) {
+        const link = document.createElement("a");
+        link.href = metadata.download_url;
+        link.download = "";
+        link.textContent = "下载新字幕";
+        editorMessage.textContent = "字幕已保存，";
+        editorMessage.appendChild(link);
+        editorMessage.appendChild(document.createTextNode("，或继续调整。"));
+      }
     }
 
     await fetchTranscripts();
@@ -627,208 +671,247 @@ async function saveEditedTranscript() {
       selectedTranscriptInput.value = transcriptId;
     }
   } catch (error) {
-    editorMessage.textContent = `保存失败：${error.message}`;
+    if (editorMessage) {
+      editorMessage.textContent = `保存失败：${error.message}`;
+    }
   }
 }
 
 // 监听字幕卡片上的按钮，支持查看与复用字幕
-transcriptsList.addEventListener("click", async (event) => {
-  const target = event.target.closest("button[data-action]");
-  if (!target) {
-    return;
-  }
+if (transcriptsList) {
+  transcriptsList.addEventListener("click", async (event) => {
+    const target = event.target.closest("button[data-action]");
+    if (!target) {
+      return;
+    }
 
-  const action = target.dataset.action;
-  const transcriptId = target.dataset.id;
+    const action = target.dataset.action;
+    const transcriptId = target.dataset.id;
 
-  if (!action || !transcriptId) {
-    return;
-  }
+    if (!action || !transcriptId) {
+      return;
+    }
 
-  if (action === "view") {
-    try {
-      const response = await fetch(`/transcripts/${transcriptId}`);
-      if (!response.ok) {
-        throw new Error("无法获取字幕内容");
+    if (action === "view") {
+      try {
+        const response = await fetch(`/transcripts/${encodeURIComponent(transcriptId)}`);
+        if (!response.ok) {
+          throw new Error("加载字幕失败");
+        }
+        const data = await response.json();
+        if (transcriptionResult && transcriptionMessage && transcriptViewer) {
+          transcriptionResult.classList.remove("hidden");
+          transcriptionMessage.textContent = `${data.original_filename || data.id} 的内容：`;
+          transcriptViewer.textContent = data.srt || "";
+        }
+      } catch (error) {
+        if (transcriptionResult && transcriptionMessage && transcriptViewer) {
+          transcriptionResult.classList.remove("hidden");
+          transcriptionMessage.textContent = `加载字幕失败：${error.message}`;
+          transcriptViewer.textContent = "";
+        }
       }
-      const data = await response.json();
+    } else if (action === "use") {
+      if (selectedTranscriptInput) {
+        selectedTranscriptInput.value = transcriptId;
+      }
+      if (transcriptSelect) {
+        transcriptSelect.value = transcriptId;
+      }
+      if (transcriptionResult && transcriptionMessage && transcriptViewer && generationForm) {
+        transcriptionResult.classList.remove("hidden");
+        transcriptionMessage.textContent = "已选择该字幕用于语音生成，请在下方配置参数并提交。";
+        transcriptViewer.textContent = "";
+        generationForm.scrollIntoView({ behavior: "smooth" });
+      }
+    } else if (action === "edit") {
+      const editorUrl = new URL("/editor", window.location.origin);
+      if (transcriptId) {
+        editorUrl.searchParams.set("transcript_id", transcriptId);
+      }
+      window.open(editorUrl.toString(), "_blank", "noopener,noreferrer");
+    }
+  });
+}
+
+if (transcriptSelect && selectedTranscriptInput) {
+  transcriptSelect.addEventListener("change", (event) => {
+    selectedTranscriptInput.value = event.target.value;
+  });
+}
+
+if (loadSelectedTranscriptButton && editTranscriptSelect) {
+  loadSelectedTranscriptButton.addEventListener("click", () => {
+    const chosen = editTranscriptSelect.value;
+    loadTranscriptIntoEditor(chosen);
+  });
+}
+
+if (editableSrtFileInput) {
+  editableSrtFileInput.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = reader.result || "";
+      const text = typeof content === "string" ? content : "";
+      const parsed = parseSrtText(text);
+      if (!parsed.length) {
+        if (editorMessage) {
+          editorMessage.textContent = "无法从上传的文件解析出字幕片段，请确认格式正确。";
+        }
+        if (editorPanel) {
+          editorPanel.classList.remove("hidden");
+        }
+        return;
+      }
+      setEditableSegments(parsed, file.name, "", file.name);
+      if (editorPanel) {
+        editorPanel.scrollIntoView({ behavior: "smooth" });
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  });
+}
+
+if (saveEditedButton) {
+  saveEditedButton.addEventListener("click", () => {
+    saveEditedTranscript();
+  });
+}
+
+// 上传音频并调用语音识别接口
+if (transcriptionForm && transcriptionResult && transcriptionMessage && transcriptViewer) {
+  transcriptionForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const selectedFile = audioFileInput?.files?.[0] || null;
+    const audioUrl = (audioUrlInput?.value || "").trim();
+
+    if (!selectedFile && !audioUrl) {
       transcriptionResult.classList.remove("hidden");
-      transcriptionMessage.textContent = `来源：${data.original_filename || data.id}，`;
+      transcriptionMessage.textContent = "请上传音频文件或填写音频 URL。";
+      transcriptViewer.textContent = "";
+      return;
+    }
+
+    const formData = new FormData();
+    if (selectedFile) {
+      formData.append("file", selectedFile);
+    }
+    if (audioUrl) {
+      formData.append("audio_url", audioUrl);
+    }
+    const configField = transcriptionForm.elements.namedItem("config");
+    if (configField && typeof configField.value === "string") {
+      const configValue = configField.value.trim();
+      if (configValue) {
+        formData.append("config", configValue);
+      }
+    }
+    transcriptionResult.classList.remove("hidden");
+    transcriptionMessage.textContent = "正在上传并识别，请稍候...";
+    transcriptViewer.textContent = "";
+
+    try {
+      const response = await fetch("/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "识别失败");
+      }
+
+      const data = await response.json();
+      transcriptionMessage.textContent = "字幕已生成，可 ";
       const downloadAnchor = document.createElement("a");
       downloadAnchor.href = data.download_url;
       downloadAnchor.download = "";
-      downloadAnchor.textContent = "下载";
+      downloadAnchor.textContent = "下载 SRT 文件";
       transcriptionMessage.appendChild(downloadAnchor);
+      transcriptionMessage.appendChild(document.createTextNode("。"));
       transcriptViewer.textContent = data.srt || "";
-      selectedTranscriptInput.value = transcriptId;
-      transcriptSelect.value = transcriptId;
+      await fetchTranscripts();
+      if (transcriptSelect) {
+        transcriptSelect.value = data.transcript_id;
+      }
+      if (selectedTranscriptInput) {
+        selectedTranscriptInput.value = data.transcript_id;
+      }
     } catch (error) {
-      transcriptionResult.classList.remove("hidden");
-      transcriptionMessage.textContent = `加载失败：${error.message}`;
+      transcriptionMessage.textContent = `识别失败：${error.message}`;
       transcriptViewer.textContent = "";
     }
-  } else if (action === "use") {
-    selectedTranscriptInput.value = transcriptId;
-    transcriptSelect.value = transcriptId;
-    transcriptionResult.classList.remove("hidden");
-    transcriptionMessage.textContent = "已选择该字幕用于语音生成，请在下方配置参数并提交。";
-    transcriptViewer.textContent = "";
-    generationForm.scrollIntoView({ behavior: "smooth" });
-  } else if (action === "edit") {
-    loadTranscriptIntoEditor(transcriptId);
-    editorPanel.scrollIntoView({ behavior: "smooth" });
-  }
-});
-
-transcriptSelect.addEventListener("change", (event) => {
-  selectedTranscriptInput.value = event.target.value;
-});
-
-loadSelectedTranscriptButton.addEventListener("click", () => {
-  const chosen = editTranscriptSelect.value;
-  loadTranscriptIntoEditor(chosen);
-});
-
-editableSrtFileInput.addEventListener("change", (event) => {
-  const file = event.target.files?.[0];
-  if (!file) {
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = () => {
-    const content = reader.result || "";
-    const text = typeof content === "string" ? content : "";
-    const parsed = parseSrtText(text);
-    if (!parsed.length) {
-      editorMessage.textContent = "无法从上传的文件解析出字幕片段，请确认格式正确。";
-      editorPanel.classList.remove("hidden");
-      return;
-    }
-    setEditableSegments(parsed, file.name, "", file.name);
-    editorPanel.scrollIntoView({ behavior: "smooth" });
-  };
-  reader.readAsText(file, "utf-8");
-});
-
-saveEditedButton.addEventListener("click", () => {
-  saveEditedTranscript();
-});
-
-// 上传音频并调用语音识别接口
-transcriptionForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const selectedFile = audioFileInput?.files?.[0] || null;
-  const audioUrl = (audioUrlInput?.value || "").trim();
-
-  if (!selectedFile && !audioUrl) {
-    transcriptionResult.classList.remove("hidden");
-    transcriptionMessage.textContent = "请上传音频文件或填写音频 URL。";
-    transcriptViewer.textContent = "";
-    return;
-  }
-
-  const formData = new FormData();
-  if (selectedFile) {
-    formData.append("file", selectedFile);
-  }
-  if (audioUrl) {
-    formData.append("audio_url", audioUrl);
-  }
-  const configField = transcriptionForm.elements.namedItem("config");
-  if (configField && typeof configField.value === "string") {
-    const configValue = configField.value.trim();
-    if (configValue) {
-      formData.append("config", configValue);
-    }
-  }
-  transcriptionResult.classList.remove("hidden");
-  transcriptionMessage.textContent = "正在上传并识别，请稍候...";
-  transcriptViewer.textContent = "";
-
-  try {
-    const response = await fetch("/transcribe", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || "识别失败");
-    }
-
-    const data = await response.json();
-    transcriptionMessage.textContent = "字幕已生成，可 ";
-    const downloadAnchor = document.createElement("a");
-    downloadAnchor.href = data.download_url;
-    downloadAnchor.download = "";
-    downloadAnchor.textContent = "下载 SRT 文件";
-    transcriptionMessage.appendChild(downloadAnchor);
-    transcriptionMessage.appendChild(document.createTextNode("。"));
-    transcriptViewer.textContent = data.srt || "";
-    await fetchTranscripts();
-    transcriptSelect.value = data.transcript_id;
-    selectedTranscriptInput.value = data.transcript_id;
-  } catch (error) {
-    transcriptionMessage.textContent = `识别失败：${error.message}`;
-    transcriptViewer.textContent = "";
-  }
-});
+  });
+}
 
 // 提交语音合成任务，可以上传新的 SRT 或复用历史字幕
-generationForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  resetStatus();
+if (generationForm && transcriptSelect && selectedTranscriptInput) {
+  generationForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    resetStatus();
 
-  const fileInput = document.getElementById("srt-file");
-  const configInput = document.getElementById("config-json");
-  const transcriptId = transcriptSelect.value || selectedTranscriptInput.value;
+    const fileInput = document.getElementById("srt-file");
+    const configInput = document.getElementById("config-json");
+    const transcriptId = transcriptSelect.value || selectedTranscriptInput.value;
 
-  if (!configInput.value.trim()) {
-    statusPanel.classList.remove("hidden");
-    statusMessage.textContent = "请填写角色与接口配置。";
-    return;
-  }
-
-  if (!fileInput.files.length && !transcriptId) {
-    statusPanel.classList.remove("hidden");
-    statusMessage.textContent = "请上传字幕文件或选择历史字幕。";
-    return;
-  }
-
-  statusPanel.classList.remove("hidden");
-  statusMessage.textContent = "正在创建语音生成任务...";
-
-  try {
-    let response;
-    if (fileInput.files.length) {
-      const formData = new FormData();
-      formData.append("file", fileInput.files[0]);
-      formData.append("config", configInput.value);
-      response = await fetch("/generate", {
-        method: "POST",
-        body: formData,
-      });
-    } else {
-      const formData = new FormData();
-      formData.append("config", configInput.value);
-      response = await fetch(`/transcripts/${encodeURIComponent(transcriptId)}/generate`, {
-        method: "POST",
-        body: formData,
-      });
+    if (!configInput.value.trim()) {
+      statusPanel.classList.remove("hidden");
+      statusMessage.textContent = "请填写角色与接口配置。";
+      return;
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || "提交失败");
+    if (!fileInput.files.length && !transcriptId) {
+      statusPanel.classList.remove("hidden");
+      statusMessage.textContent = "请上传字幕文件或选择历史字幕。";
+      return;
     }
 
-    const data = await response.json();
-    statusMessage.textContent = "任务已创建，开始处理...";
-    pollStatus(data.job_id);
-  } catch (error) {
-    statusMessage.textContent = `提交失败：${error.message}`;
+    statusPanel.classList.remove("hidden");
+    statusMessage.textContent = "正在创建语音生成任务...";
+
+    try {
+      let response;
+      if (fileInput.files.length) {
+        const formData = new FormData();
+        formData.append("file", fileInput.files[0]);
+        formData.append("config", configInput.value);
+        response = await fetch("/generate", {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        const formData = new FormData();
+        formData.append("config", configInput.value);
+        response = await fetch(`/transcripts/${encodeURIComponent(transcriptId)}/generate`, {
+          method: "POST",
+          body: formData,
+        });
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "提交失败");
+      }
+
+      const data = await response.json();
+      statusMessage.textContent = "任务已创建，开始处理...";
+      pollStatus(data.job_id);
+    } catch (error) {
+      statusMessage.textContent = `提交失败：${error.message}`;
+    }
+  });
+}
+
+const initialTranscriptId = new URLSearchParams(window.location.search).get("transcript_id") || "";
+
+fetchTranscripts().then(() => {
+  if (initialTranscriptId && editTranscriptSelect) {
+    editTranscriptSelect.value = initialTranscriptId;
+    loadTranscriptIntoEditor(initialTranscriptId);
   }
 });
-
-fetchTranscripts();
