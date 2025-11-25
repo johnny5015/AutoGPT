@@ -739,9 +739,15 @@ async function saveEditedTranscript() {
 
     await fetchTranscripts();
     if (transcriptId) {
-      transcriptSelect.value = transcriptId;
-      editTranscriptSelect.value = transcriptId;
-      selectedTranscriptInput.value = transcriptId;
+      if (transcriptSelect) {
+        transcriptSelect.value = transcriptId;
+      }
+      if (editTranscriptSelect) {
+        editTranscriptSelect.value = transcriptId;
+      }
+      if (selectedTranscriptInput) {
+        selectedTranscriptInput.value = transcriptId;
+      }
     }
   } catch (error) {
     if (editorMessage) {
